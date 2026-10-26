@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>3D 俄罗斯方块 · 空间消除</title>
+    <style>
+        :root {
+            --bg: #eef1f8;
+            --panel: rgba(255, 255, 255, 0.78);
+            --panel-border: rgba(150, 145, 195, 0.25);
+            --text-dark: #35355a;
+            --text-mid: #6a6a92;
+            --text-light: #9a9ab8;
+            --accent: #7b6fb0;
+            --axis-x: #b85c5c;
+            --axis-y: #5d8f6c;
+            --axis-z: #5c82b8;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+            position: fixed;
+            font-family: 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: var(--bg);
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        canvas { display: block; }
+
+        /* ===== HUD ===== */
+        #hud {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            padding: calc(12px + env(safe-area-inset-top)) 14px 0 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none;
+            z-index: 100;
+        }
+        .hud-left {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: flex-start;
+            pointer-events: none;
+        }
+        .hud-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+            pointer-events: none;
+        }
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            box-shadow: 0 6px 20px rgba(140, 130, 185, 0.14);
+        }
+
+        /* 分数卡片 */
+        .score-card {
+            padding: 12px 20px 14px;
+            border-radius: 22px;
+            min-width: 132px;
+        }
+        .score-label {
+            font-size: 10px;
+            letter-spacing: 3px;
+            color: var(--text-light);
+            font-weight: 700;
+        }
+        .score-value {
+            font-size: 40px;
+            font-weight: 900;
+            color: var(--text-dark);
+            line-height: 1;
+            margin: 4px 0 8px;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -1px;
+        }
+        .meta-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 11.5px;
+            color: var(--text-mid);
+            font-weight: 600;
+        }
+        .meta-time {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.5px;
+        }
+        .meta-time::before {
+            content: '';
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            border: 1.5px solid #b0aecb;
+            border-top-color: transparent;
+            display: inline-block;
+        }
+        .diff-tag {
+            font-size: 10px;
+            font-weight: 700;
+            color: #fff;
+            background: var(--accent);
+            border-radius: 20px;
+            padding: 2px 9px;
+            letter-spacing: 1px;
+        }
+
+        /* HUD 小按钮 */
+        .hud-btns {
+            display: flex;
+            gap: 6px;
+            pointer-events: none;
+        }
+        .hud-btn {
+            pointer-events: auto;
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid var(--panel-border);
+            border-radius: 13px;
+            height: 38px;
+            min-width: 42px;
+            padding: 0 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #6a6a92;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(140, 130, 185, 0.12);
+            font-family: inherit;
+            letter-spacing: 0.5px;
+            transition: transform 0.12s ease, background 0.12s ease;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            white-space: nowrap;
+        }
+        .hud-btn:active {
+            transform: scale(0.94);
+            background: rgba(230, 226, 250, 0.92);
+        }
+        #btnPause.paused {
+            background: rgba(255, 230, 180, 0.9);
+            border-color: rgba(200, 160, 60, 0.35);
+            color: #8a6a20;
+        }
+
+        /* 下一个预览 */
+        .next-card {
+            padding: 7px 11px 9px;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .next-label {
+            font-size: 9px;
+            letter-spacing: 2px;
+            color: var(--text-light);
+            font-weight: 700;
+            margin-bottom: 3px;
+        }
+        #nextCanvas {
+            width: 58px;
+            height: 58px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.35);
+        }
+
+        /* Gizmo 容器 */
+        #gizmo-wrap {
+            width: 76px;
+            height: 76px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.55);
+            border: 1px solid var(--panel-border);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 4px 14px rgba(140, 130, 185, 0.14);
+            overflow: hidden;
+            pointer-events: none;
+            position: relative;
+        }
+        #gizmo-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        /* ===== 移动端虚拟按键 ===== */
+        #mobile-controls {
+            position: fixed;
+            left: 0; right: 0;
+            bottom: 0;
+            padding: 6px 10px calc(8px + env(safe-area-inset-bottom)) 10px;
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+            z-index: 300;
+            pointer-events: none;
+        }
+        .mc-row {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            pointer-events: none;
+        }
+        .mc-btn {
+            pointer-events: auto;
+            flex: 1;
+            height: 44px;
+            border-radius: 11px;
+            font-weight: 700;
+            line-height: 1;
+            touch-action: none;
+            transition: transform 0.1s ease, background 0.12s ease, box-shadow 0.12s ease;
+            cursor: pointer;
+            font-family: inherit;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            position: relative;
+            background: rgba(255, 255, 255, 0.62);
+            border: 1px solid rgba(150, 145, 195, 0.22);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 2px 6px rgba(140, 130, 185, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+            color: #6a6a92;
+        }
+        .mc-btn:active {
+            transform: scale(0.94);
+        }
+
+        .axis-text {
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: 0.2px;
+            font-family: 'SF Mono', 'Consolas', 'Menlo', monospace;
+        }
+        .rot-icon {
+            font-size: 11px;
+            opacity: 0.55;
+            font-weight: 700;
+        }
+
+        /* X 轴 */
+        .mc-btn[data-axis="x"] {
+            color: var(--axis-x);
+            border-color: rgba(184, 92, 92, 0.26);
+            background: rgba(255, 246, 246, 0.66);
+        }
+        .mc-btn[data-axis="x"]:active {
+            background: rgba(255, 228, 228, 0.94);
+            box-shadow: 0 1px 4px rgba(184, 92, 92, 0.18);
+        }
+        /* Y 轴 */
+        .mc-btn[data-axis="y"] {
+            color: var(--axis-y);
+            border-color: rgba(93, 143, 108, 0.26);
+            background: rgba(245, 252, 246, 0.66);
+        }
+        .mc-btn[data-axis="y"]:active {
+            background: rgba(224, 245, 230, 0.94);
+            box-shadow: 0 1px 4px rgba(93, 143, 108, 0.18);
+        }
+        /* Z 轴 */
+        .mc-btn[data-axis="z"] {
+            color: var(--axis-z);
+            border-color: rgba(92, 130, 184, 0.26);
+            background: rgba(244, 248, 255, 0.66);
+        }
+        .mc-btn[data-axis="z"]:active {
+            background: rgba(224, 235, 255, 0.94);
+            box-shadow: 0 1px 4px rgba(92, 130, 184, 0.18);
+        }
+
+        .mc-btn.rot { font-size: 14px; gap: 2px; }
+        .mc-btn.rot .axis-text { font-size: 14px; }
+
+        .mc-btn.drop {
+            color: #8a6268;
+            background: rgba(255, 246, 246, 0.7);
+            border-color: rgba(180, 130, 135, 0.26);
+            font-size: 19px;
+        }
+        .mc-btn.drop:active {
+            background: rgba(255, 228, 230, 0.94);
+            box-shadow: 0 1px 4px rgba(180, 130, 135, 0.18);
+        }
+
+        @media (pointer: coarse) {
+            #mobile-controls { display: flex; }
+        }
+
+        /* ===== 暂停覆盖层 ===== */
+        #pause-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 450;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(238, 241, 248, 0.72);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        #pause-overlay .overlay-card {
+            max-width: 280px;
+            animation: pop 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+            text-align: center;
+        }
+        #pause-overlay h1 {
+            font-size: 24px;
+            margin-bottom: 4px;
+        }
+        .resume-btn {
+            width: 100%;
+            padding: 14px;
+            border-radius: 16px;
+            border: none;
+            background: linear-gradient(135deg, #4a9fe8, #2f7fd1);
+            color: #fff;
+            font-size: 17px;
+            font-weight: 800;
+            letter-spacing: 3px;
+            cursor: pointer;
+            font-family: inherit;
+            box-shadow: 0 6px 16px rgba(60, 130, 200, 0.3);
+            transition: transform 0.1s ease;
+        }
+        .resume-btn:active { transform: scale(0.96); }
+
+        /* ===== 开始 / 结束覆盖层 ===== */
+        #overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            background: rgba(238, 241, 248, 0.88);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            overflow-y: auto;
+        }
+        .overlay-card {
+            width: 100%;
+            max-width: 380px;
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid rgba(160, 155, 205, 0.3);
+            border-radius: 26px;
+            padding: 28px 22px;
+            box-shadow: 0 20px 60px rgba(130, 120, 180, 0.22);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            animation: pop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+            margin: auto;
+        }
+        @keyframes pop {
+            0% { transform: scale(0.92) translateY(14px); opacity: 0; }
+            100% { transform: scale(1) translateY(0); opacity: 1; }
+        }
+        .overlay-card h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: var(--text-dark);
+        }
+        .overlay-card .subtitle {
+            margin: 2px 0 20px;
+            color: var(--text-mid);
+            font-size: 13px;
+            letter-spacing: 1px;
+        }
+        .diff-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+        .diff-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            padding: 14px 10px;
+            border-radius: 16px;
+            border: 2px solid transparent;
+            font-family: inherit;
+            cursor: pointer;
+            transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s;
+            color: #fff;
+            font-weight: 800;
+            font-size: 18px;
+            letter-spacing: 4px;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+            box-shadow: 0 6px 16px rgba(120, 110, 170, 0.2);
+        }
+        .diff-btn .diff-desc {
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 1px;
+            opacity: 0.92;
+        }
+        .diff-btn:hover { transform: translateY(-2px); filter: brightness(1.05); }
+        .diff-btn:active { transform: scale(0.97); }
+        .diff-btn.easy   { background: linear-gradient(135deg, #43c96a, #2ea856); }
+        .diff-btn.normal { background: linear-gradient(135deg, #4a9fe8, #2f7fd1); }
+        .diff-btn.hard   { background: linear-gradient(135deg, #f25c5c, #d63c3c); }
+        .final-score {
+            margin: 4px 0 20px;
+            font-size: 14px;
+            color: var(--text-mid);
+            letter-spacing: 2px;
+        }
+        .final-score span {
+            display: block;
+            font-size: 44px;
+            font-weight: 900;
+            color: var(--text-dark);
+            margin-top: 2px;
+            font-variant-numeric: tabular-nums;
+            text-shadow: 0 4px 18px rgba(120, 110, 170, 0.2);
+        }
+
+        /* ===== 桌面端提示 ===== */
+        #desktop-tips {
+            position: fixed;
+            bottom: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 40px;
+            padding: 8px 22px;
+            color: var(--text-mid);
+            font-size: 12px;
+            letter-spacing: 0.5px;
+            z-index: 100;
+            box-shadow: 0 6px 20px rgba(140, 130, 185, 0.12);
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0.95;
+        }
+        #desktop-tips kbd {
+            display: inline-block;
+            background: #fff;
+            border: 1px solid var(--panel-border);
+            border-bottom-width: 2px;
+            border-radius: 6px;
+            padding: 1px 6px;
+            margin: 0 1px;
+            color: var(--accent);
+            font-weight: 700;
+            font-size: 11px;
+            font-family: inherit;
+        }
+        @media (pointer: coarse) {
+            #desktop-tips { display: none; }
+        }
+
+        /* 小屏适配 */
+        @media (max-width: 480px) {
+            .score-card { padding: 10px 16px 12px; min-width: 118px; border-radius: 18px; }
+            .score-value { font-size: 34px; margin: 3px 0 7px; }
+            .score-label { font-size: 9px; }
+            .meta-row { font-size: 10.5px; gap: 8px; }
+            .diff-tag { font-size: 9px; padding: 2px 7px; }
+            .hud-btn { height: 34px; padding: 0 11px; font-size: 12px; border-radius: 11px; }
+            #nextCanvas { width: 52px; height: 52px; }
+            .next-card { padding: 6px 9px 8px; border-radius: 14px; }
+            #gizmo-wrap { width: 64px; height: 64px; }
+            .mc-btn { height: 42px; border-radius: 10px; }
+            .axis-text { font-size: 14px; }
+            .mc-btn.rot .axis-text { font-size: 13px; }
+            .rot-icon { font-size: 10px; }
+            .mc-btn.drop { font-size: 18px; }
+            .overlay-card { padding: 22px 16px; }
+            .overlay-card h1 { font-size: 21px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- HUD -->
+    <div id="hud">
+        <div class="hud-left">
+            <div class="score-card panel">
+                <div class="score-label">分数</div>
+                <div class="score-value" id="score">0</div>
+                <div class="meta-row">
+                    <span class="meta-time" id="timer">00:00</span>
+                    <span class="diff-tag" id="diffTag">中等</span>
+                </div>
+            </div>
+            <div class="hud-btns">
+                <button id="btnBack" class="hud-btn" type="button">菜单</button>
+                <button id="btnPause" class="hud-btn" type="button">暂停</button>
+            </div>
+        </div>
+        <div class="hud-right">
+            <div class="next-card panel">
+                <div class="next-label">下一个</div>
+                <canvas id="nextCanvas" width="120" height="120"></canvas>
+            </div>
+            <div id="gizmo-wrap"></div>
+        </div>
+    </div>
+
+    <!-- 移动端虚拟按键：轴名按钮 -->
+    <div id="mobile-controls">
+        <div class="mc-row">
+            <button class="mc-btn" id="btnXMinus" data-axis="x" aria-label="X轴负方向">
+                <span class="axis-text">−X</span>
+            </button>
+            <button class="mc-btn" id="btnXPlus" data-axis="x" aria-label="X轴正方向">
+                <span class="axis-text">+X</span>
+            </button>
+            <button class="mc-btn" id="btnZMinus" data-axis="z" aria-label="Z轴负方向">
+                <span class="axis-text">−Z</span>
+            </button>
+            <button class="mc-btn" id="btnZPlus" data-axis="z" aria-label="Z轴正方向">
+                <span class="axis-text">+Z</span>
+            </button>
+        </div>
+        <div class="mc-row">
+            <button class="mc-btn rot" id="btnRotX" data-axis="x" aria-label="绕X轴旋转">
+                <span class="axis-text">X</span><span class="rot-icon">↻</span>
+            </button>
+            <button class="mc-btn rot" id="btnRotY" data-axis="y" aria-label="绕Y轴旋转">
+                <span class="axis-text">Y</span><span class="rot-icon">↻</span>
+            </button>
+            <button class="mc-btn rot" id="btnRotZ" data-axis="z" aria-label="绕Z轴旋转">
+                <span class="axis-text">Z</span><span class="rot-icon">↻</span>
+            </button>
+            <button class="mc-btn drop" id="btnDrop" aria-label="落底确认">⤓</button>
+        </div>
+    </div>
+
+    <!-- 桌面端提示 -->
+    <div id="desktop-tips">
+        <kbd>←</kbd><kbd>→</kbd> X轴 &nbsp;<kbd>↑</kbd><kbd>↓</kbd> Z轴 &nbsp;·&nbsp;
+        <kbd>Q</kbd><kbd>E</kbd> 绕Y &nbsp;<kbd>W</kbd><kbd>S</kbd> 绕X &nbsp;<kbd>A</kbd><kbd>D</kbd> 绕Z &nbsp;·&nbsp;
+        <kbd>空格</kbd> 落底 &nbsp;·&nbsp; <kbd>P</kbd> 暂停
+    </div>
+
+    <!-- 暂停覆盖层 -->
+    <div id="pause-overlay">
+        <div class="overlay-card">
+            <h1>⏸ 已暂停</h1>
+            <p class="subtitle">游戏已暂停，随时可以继续</p>
+            <button class="resume-btn" id="btnResume" type="button">继续游戏</button>
+        </div>
+    </div>
+
+    <!-- 开始 / 结束覆盖层 -->
+    <div id="overlay">
+        <div class="overlay-card" id="start-card">
+            <h1>🧊 3D 空间俄罗斯方块</h1>
+            <p class="subtitle">选择难度开始游戏</p>
+            <div class="diff-buttons">
+                <button class="diff-btn easy" data-diff="easy">
+                    简单
+                    <span class="diff-desc">空中悬停 · 确认后落下</span>
+                </button>
+                <button class="diff-btn normal" data-diff="normal">
+                    中等
+                    <span class="diff-desc">缓慢自动下落</span>
+                </button>
+                <button class="diff-btn hard" data-diff="hard">
+                    困难
+                    <span class="diff-desc">较快自动下落</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="overlay-card" id="over-card" style="display:none">
+            <h1>游戏结束</h1>
+            <p class="final-score">最终得分<span id="finalScore">0</span></p>
+            <div class="diff-buttons">
+                <button class="diff-btn easy" data-diff="easy">简单 · 再来一局</button>
+                <button class="diff-btn normal" data-diff="normal">中等 · 再来一局</button>
+                <button class="diff-btn hard" data-diff="hard">困难 · 再来一局</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./vendor/build/three.module.js",
+                "three/addons/": "./vendor/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // ================= 配置 =================
+        const COLS = 8;
+        const ROWS = 16;
+        const DEPTH = 8;
+
+        const DIFFICULTIES = {
+            easy:   { label: '简单', autoDrop: false, startInterval: 0,    minInterval: 0,   accel: 0 },
+            normal: { label: '中等', autoDrop: true,  startInterval: 1200, minInterval: 400, accel: 0.12 },
+            hard:   { label: '困难', autoDrop: true,  startInterval: 820,  minInterval: 220, accel: 0.20 }
+        };
+        let diffKey = 'normal';
+        let diffConf = DIFFICULTIES[diffKey];
+
+        const SHAPE_COLORS = [
+            0x00acc1, 0xff9800, 0x8e24aa, 0x43a047, 0xe53935,
+            0xfb8c00, 0x1e88e5, 0xd81b60, 0x00897b, 0x6d4c41
+        ];
+
+        const SHAPES = [
+            [[0,0,0], [1,0,0], [2,0,0], [3,0,0]],
+            [[0,0,0], [1,0,0], [0,0,1], [1,0,1]],
+            [[0,0,0], [1,0,0], [2,0,0], [1,0,1]],
+            [[1,0,0], [2,0,0], [0,0,1], [1,0,1]],
+            [[0,0,0], [1,0,0], [1,0,1], [2,0,1]],
+            [[0,0,0], [1,0,0], [2,0,0], [0,0,1]],
+            [[0,0,0], [1,0,0], [2,0,0], [2,0,1]],
+            [[0,0,0], [1,0,0], [0,0,1], [1,0,2]],
+            [[0,0,0], [1,0,0], [1,0,1], [1,0,2]],
+            [[0,0,0], [0,0,1], [1,0,1], [1,0,2]]
+        ];
+
+        // ================= 主场景 =================
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xeef1f8);
+        scene.fog = new THREE.FogExp2(0xeef1f8, 0.016);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.06;
+        controls.enableZoom = true;
+        controls.zoomSpeed = 0.9;
+        controls.rotateSpeed = 0.8;
+        controls.maxDistance = 60;
+        controls.minDistance = 12;
+
+        // ================= 灯光 =================
+        scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+
+        const dirLight = new THREE.DirectionalLight(0xfff8ee, 0.85);
+        dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        const d = 26;
+        dirLight.shadow.camera.left = -d;
+        dirLight.shadow.camera.right = d;
+        dirLight.shadow.camera.top = d;
+        dirLight.shadow.camera.bottom = -d;
+        dirLight.shadow.camera.near = 1;
+        dirLight.shadow.camera.far = 55;
+        dirLight.shadow.bias = -0.0005;
+        scene.add(dirLight);
+
+        const backLight = new THREE.PointLight(0xaaccff, 0.45);
+        backLight.position.set(-8, 10, -12);
+        scene.add(backLight);
+
+        const colorLight1 = new THREE.PointLight(0xffc2d8, 0.35);
+        colorLight1.position.set(16, 6, 16);
+        scene.add(colorLight1);
+
+        const colorLight2 = new THREE.PointLight(0xc2f0c8, 0.35);
+        colorLight2.position.set(-6, 6, 20);
+        scene.add(colorLight2);
+
+        // ================= 场景装饰 =================
+        const boundaryBox = new THREE.Mesh(
+            new THREE.BoxGeometry(COLS, ROWS, DEPTH),
+            new THREE.MeshBasicMaterial({ color: 0xb6bcd8, wireframe: true, transparent: true, opacity: 0.28 })
+        );
+        boundaryBox.position.set(COLS/2, ROWS/2, DEPTH/2);
+        scene.add(boundaryBox);
+
+        const bottomPlane = new THREE.Mesh(
+            new THREE.PlaneGeometry(COLS, DEPTH),
+            new THREE.MeshStandardMaterial({ color: 0xdde3f2, transparent: true, opacity: 0.35, side: THREE.DoubleSide })
+        );
+        bottomPlane.rotation.x = -Math.PI / 2;
+        bottomPlane.position.set(COLS/2, 0.01, DEPTH/2);
+        scene.add(bottomPlane);
+
+        // ================= 复用几何 / 材质 =================
+        const CUBE_SIZE = 0.94;
+        const sharedGeometry = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
+        const sharedEdges = new THREE.EdgesGeometry(sharedGeometry);
+        const sharedLineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.55, transparent: true });
+        const materialCache = new Map();
+
+        function getMaterial(color) {
+            if (!materialCache.has(color)) {
+                materialCache.set(color, new THREE.MeshStandardMaterial({
+                    color: color, emissive: color, emissiveIntensity: 0.14,
+                    roughness: 0.48, metalness: 0.08, transparent: true, opacity: 0.96
+                }));
+            }
+            return materialCache.get(color);
+        }
+
+        function createCube(color) {
+            const cube = new THREE.Mesh(sharedGeometry, getMaterial(color));
+            cube.castShadow = true;
+            cube.receiveShadow = true;
+            cube.add(new THREE.LineSegments(sharedEdges, sharedLineMaterial));
+            return cube;
+        }
+
+        // ================= 世界轴 Gizmo =================
+        const gizmoScene = new THREE.Scene();
+        const gizmoCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 10);
+        gizmoCamera.position.set(0, 0, 3.6);
+        gizmoCamera.lookAt(0, 0, 0);
+
+        const gizmoRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        gizmoRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        gizmoRenderer.setClearColor(0x000000, 0);
+        const gizmoCanvas = gizmoRenderer.domElement;
+        gizmoCanvas.id = 'gizmo-canvas';
+        document.getElementById('gizmo-wrap').appendChild(gizmoCanvas);
+
+        const gizmoAxes = {};
+        function createAxis(color, name) {
+            const group = new THREE.Group();
+            const matShaft = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5 });
+            const matPos = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.92 });
+            const matNeg = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3 });
+
+            const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 1.6, 6), matShaft);
+
+            const posHead = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.26, 10), matPos);
+            posHead.position.y = 0.93;
+
+            const negHead = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.26, 10), matNeg);
+            negHead.position.y = -0.93;
+            negHead.rotation.z = Math.PI;
+
+            group.add(shaft, posHead, negHead);
+            gizmoAxes[name] = { group, posHead, negHead, matPos, matNeg };
+            return group;
+        }
+
+        const xAxisG = createAxis(0xb85c5c, 'x');
+        xAxisG.rotation.z = -Math.PI / 2;
+        gizmoScene.add(xAxisG);
+
+        const yAxisG = createAxis(0x5d8f6c, 'y');
+        gizmoScene.add(yAxisG);
+
+        const zAxisG = createAxis(0x5c82b8, 'z');
+        zAxisG.rotation.x = Math.PI / 2;
+        gizmoScene.add(zAxisG);
+
+        const centerDot = new THREE.Mesh(
+            new THREE.SphereGeometry(0.1, 16, 16),
+            new THREE.MeshBasicMaterial({ color: 0x8a82b0, transparent: true, opacity: 0.7 })
+        );
+        gizmoScene.add(centerDot);
+
+        const gizmoHighlights = { xp: 0, xn: 0, yp: 0, yn: 0, zp: 0, zn: 0 };
+
+        function flashAxis(axis, isPositive, both) {
+            const expire = performance.now() + 340;
+            if (both) {
+                gizmoHighlights[axis + 'p'] = expire;
+                gizmoHighlights[axis + 'n'] = expire;
+            } else {
+                gizmoHighlights[axis + (isPositive ? 'p' : 'n')] = expire;
+            }
+        }
+
+        const _v3a = new THREE.Vector3();
+        const _v3b = new THREE.Vector3();
+        function updateGizmoHighlight() {
+            const now = performance.now();
+            for (const axis of ['x', 'y', 'z']) {
+                const obj = gizmoAxes[axis];
+                const pActive = gizmoHighlights[axis + 'p'] > now;
+                const nActive = gizmoHighlights[axis + 'n'] > now;
+
+                const pTarget = pActive ? 1.55 : 1;
+                const nTarget = nActive ? 1.55 : 1;
+                _v3a.set(pTarget, pTarget, pTarget);
+                _v3b.set(nTarget, nTarget, nTarget);
+                obj.posHead.scale.lerp(_v3a, 0.32);
+                obj.negHead.scale.lerp(_v3b, 0.32);
+                obj.matPos.opacity = THREE.MathUtils.lerp(obj.matPos.opacity, pActive ? 1 : 0.9, 0.32);
+                obj.matNeg.opacity = THREE.MathUtils.lerp(obj.matNeg.opacity, nActive ? 0.9 : 0.3, 0.32);
+            }
+        }
+
+        const _gizmoDir = new THREE.Vector3();
+        function renderGizmo() {
+            _gizmoDir.copy(camera.position).sub(controls.target).normalize();
+            gizmoCamera.position.copy(_gizmoDir).multiplyScalar(3.6);
+            gizmoCamera.up.copy(camera.up);
+            gizmoCamera.lookAt(0, 0, 0);
+            gizmoRenderer.render(gizmoScene, gizmoCamera);
+        }
+
+        function layoutGizmo() {
+            const isSmall = window.innerWidth <= 480;
+            const size = isSmall ? 64 : 76;
+            const wrap = document.getElementById('gizmo-wrap');
+            wrap.style.width = size + 'px';
+            wrap.style.height = size + 'px';
+            gizmoRenderer.setSize(size, size, false);
+        }
+
+        // ================= 游戏状态 =================
+        const grid = new Map();
+        let currentPiece = null;
+        let nextPiece = null;
+        let score = 0;
+        let gameOver = true;
+        let gameInterval = null;
+        let currentInterval = diffConf.startInterval;
+        let running = false;
+        let paused = false;
+
+        let gameStartTime = 0;
+        let totalPauseTime = 0;
+        let pauseStartTime = 0;
+
+        const blocksGroup = new THREE.Group();
+        scene.add(blocksGroup);
+
+        const scoreEl = document.getElementById('score');
+        const timerEl = document.getElementById('timer');
+        const finalScoreEl = document.getElementById('finalScore');
+        const diffTagEl = document.getElementById('diffTag');
+        const overlay = document.getElementById('overlay');
+        const startCard = document.getElementById('start-card');
+        const overCard = document.getElementById('over-card');
+        const nextCanvas = document.getElementById('nextCanvas');
+        const nextCtx = nextCanvas.getContext('2d');
+        const btnBack = document.getElementById('btnBack');
+        const btnPause = document.getElementById('btnPause');
+        const pauseOverlay = document.getElementById('pause-overlay');
+        const btnResume = document.getElementById('btnResume');
+
+        // ================= 工具函数 =================
+        const keyOf = (x, y, z) => `${x},${y},${z}`;
+
+        function isValidPosition(shape, pos) {
+            for (let i = 0; i < shape.length; i++) {
+                const x = pos.x + shape[i][0];
+                const y = pos.y + shape[i][1];
+                const z = pos.z + shape[i][2];
+                if (x < 0 || x >= COLS || y < 0 || y >= ROWS || z < 0 || z >= DEPTH) return false;
+                if (grid.has(keyOf(x, y, z))) return false;
+            }
+            return true;
+        }
+
+        function worldPositions(shape, pos) {
+            return shape.map(c => ({ x: pos.x + c[0], y: pos.y + c[1], z: pos.z + c[2] }));
+        }
+
+        function renderCurrentPiece() {
+            if (currentPiece && currentPiece.meshGroup) {
+                scene.remove(currentPiece.meshGroup);
+            }
+            if (!currentPiece) return;
+
+            const group = new THREE.Group();
+            const color = SHAPE_COLORS[currentPiece.colorIndex];
+            for (const p of worldPositions(currentPiece.shape, currentPiece.position)) {
+                const cube = createCube(color);
+                cube.position.set(p.x + 0.5, p.y + 0.5, p.z + 0.5);
+                group.add(cube);
+            }
+            currentPiece.meshGroup = group;
+            scene.add(group);
+        }
+
+        function drawNextPiece() {
+            const W = nextCanvas.width, H = nextCanvas.height;
+            nextCtx.clearRect(0, 0, W, H);
+            if (!nextPiece) return;
+
+            let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+            for (const [x, y, z] of nextPiece.shape) {
+                if (x < minX) minX = x; if (x > maxX) maxX = x;
+                if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+            }
+            const sw = maxX - minX + 1, sd = maxZ - minZ + 1;
+            const pad = 14;
+            const cell = Math.min((W - pad * 2) / sw, (H - pad * 2) / sd);
+            const ox = (W - sw * cell) / 2, oy = (H - sd * cell) / 2;
+            const color = SHAPE_COLORS[nextPiece.colorIndex];
+            const hex = '#' + color.toString(16).padStart(6, '0');
+
+            for (const [x, y, z] of nextPiece.shape) {
+                const px = ox + (x - minX) * cell, py = oy + (z - minZ) * cell;
+                const inset = 1.5;
+                nextCtx.save();
+                nextCtx.fillStyle = hex;
+                nextCtx.shadowColor = hex;
+                nextCtx.shadowBlur = 8;
+                roundRect(nextCtx, px + inset, py + inset, cell - inset * 2, cell - inset * 2, 5);
+                nextCtx.fill();
+                nextCtx.restore();
+                nextCtx.fillStyle = 'rgba(255,255,255,0.45)';
+                roundRect(nextCtx, px + 4, py + 4, cell - 10, cell - 10, 3);
+                nextCtx.fill();
+            }
+        }
+
+        function roundRect(ctx, x, y, w, h, r) {
+            if (w < 2 * r) r = w / 2;
+            if (h < 2 * r) r = h / 2;
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+        }
+
+        function randomPiece() {
+            const idx = Math.floor(Math.random() * SHAPES.length);
+            return { shape: SHAPES[idx].map(c => c.slice()), colorIndex: idx % SHAPE_COLORS.length };
+        }
+
+        function spawnPiece() {
+            if (!nextPiece) nextPiece = randomPiece();
+
+            currentPiece = {
+                shape: nextPiece.shape,
+                colorIndex: nextPiece.colorIndex,
+                position: {
+                    x: Math.floor(COLS / 2) - 1,
+                    y: ROWS - 2,
+                    z: Math.floor(DEPTH / 2) - 1
+                },
+                meshGroup: null
+            };
+
+            nextPiece = randomPiece();
+            drawNextPiece();
+
+            if (!isValidPosition(currentPiece.shape, currentPiece.position)) {
+                triggerGameOver();
+                return;
+            }
+            renderCurrentPiece();
+        }
+
+        function movePiece(dx, dy, dz) {
+            if (paused || !currentPiece || gameOver) return false;
+            const np = {
+                x: currentPiece.position.x + dx,
+                y: currentPiece.position.y + dy,
+                z: currentPiece.position.z + dz
+            };
+            if (isValidPosition(currentPiece.shape, np)) {
+                currentPiece.position = np;
+                renderCurrentPiece();
+                return true;
+            }
+            return false;
+        }
+
+        function tryRotate(axis) {
+            if (paused || !currentPiece || gameOver) return;
+
+            const oldShape = currentPiece.shape;
+            const oldPos = currentPiece.position;
+
+            let minWX = Infinity, maxWX = -Infinity;
+            let minWY = Infinity, maxWY = -Infinity;
+            let minWZ = Infinity, maxWZ = -Infinity;
+            for (const [x, y, z] of oldShape) {
+                const wx = oldPos.x + x, wy = oldPos.y + y, wz = oldPos.z + z;
+                if (wx < minWX) minWX = wx; if (wx > maxWX) maxWX = wx;
+                if (wy < minWY) minWY = wy; if (wy > maxWY) maxWY = wy;
+                if (wz < minWZ) minWZ = wz; if (wz > maxWZ) maxWZ = wz;
+            }
+            const cx = (minWX + maxWX) / 2, cy = (minWY + maxWY) / 2, cz = (minWZ + maxWZ) / 2;
+
+            const rotatedWorld = [];
+            for (const [x, y, z] of oldShape) {
+                let rx = (oldPos.x + x) - cx;
+                let ry = (oldPos.y + y) - cy;
+                let rz = (oldPos.z + z) - cz;
+                let nx, ny, nz;
+                if (axis === 'x') { nx = rx; ny = -rz; nz = ry; }
+                else if (axis === 'y') { nx = rz; ny = ry; nz = -rx; }
+                else { nx = -ry; ny = rx; nz = rz; }
+                rotatedWorld.push([cx + nx, cy + ny, cz + nz]);
+            }
+
+            const rounded = rotatedWorld.map(([x, y, z]) => [Math.round(x), Math.round(y), Math.round(z)]);
+            const seen = new Set();
+            const uniqueWorld = [];
+            for (const p of rounded) {
+                const k = p.join(',');
+                if (!seen.has(k)) { seen.add(k); uniqueWorld.push(p); }
+            }
+            if (uniqueWorld.length !== oldShape.length) return;
+
+            let nMinX = Infinity, nMinY = Infinity, nMinZ = Infinity;
+            for (const [x, y, z] of uniqueWorld) {
+                if (x < nMinX) nMinX = x;
+                if (y < nMinY) nMinY = y;
+                if (z < nMinZ) nMinZ = z;
+            }
+            const newShape = uniqueWorld.map(([x, y, z]) => [x - nMinX, y - nMinY, z - nMinZ]);
+            const basePos = { x: nMinX, y: nMinY, z: nMinZ };
+
+            const tries = [
+                [0,0,0], [-1,0,0], [1,0,0], [0,0,-1], [0,0,1],
+                [0,-1,0], [0,1,0], [-1,0,-1], [1,0,1], [-1,0,1], [1,0,-1],
+                [0,-1,-1], [0,-1,1], [0,1,-1], [0,1,1],
+                [-1,-1,0], [1,-1,0], [-1,1,0], [1,1,0]
+            ];
+
+            for (const [ox, oy, oz] of tries) {
+                const np = { x: basePos.x + ox, y: basePos.y + oy, z: basePos.z + oz };
+                if (isValidPosition(newShape, np)) {
+                    currentPiece.shape = newShape;
+                    currentPiece.position = np;
+                    renderCurrentPiece();
+                    return;
+                }
+            }
+        }
+
+        function hardDrop() {
+            if (paused || !currentPiece || gameOver) return;
+            while (isValidPosition(currentPiece.shape, {
+                x: currentPiece.position.x,
+                y: currentPiece.position.y - 1,
+                z: currentPiece.position.z
+            })) {
+                currentPiece.position.y -= 1;
+            }
+            renderCurrentPiece();
+            lockPiece();
+        }
+
+        function detectAndClear() {
+            const toRemove = new Set();
+
+            for (let y = 0; y < ROWS; y++) {
+                for (let z = 0; z < DEPTH; z++) {
+                    let full = true;
+                    for (let x = 0; x < COLS; x++) {
+                        if (!grid.has(keyOf(x, y, z))) { full = false; break; }
+                    }
+                    if (full) for (let x = 0; x < COLS; x++) toRemove.add(keyOf(x, y, z));
+                }
+            }
+            for (let x = 0; x < COLS; x++) {
+                for (let y = 0; y < ROWS; y++) {
+                    let full = true;
+                    for (let z = 0; z < DEPTH; z++) {
+                        if (!grid.has(keyOf(x, y, z))) { full = false; break; }
+                    }
+                    if (full) for (let z = 0; z < DEPTH; z++) toRemove.add(keyOf(x, y, z));
+                }
+            }
+            for (let x = 0; x < COLS; x++) {
+                for (let z = 0; z < DEPTH; z++) {
+                    let full = true;
+                    for (let y = 0; y < ROWS; y++) {
+                        if (!grid.has(keyOf(x, y, z))) { full = false; break; }
+                    }
+                    if (full) for (let y = 0; y < ROWS; y++) toRemove.add(keyOf(x, y, z));
+                }
+            }
+
+            if (toRemove.size === 0) return 0;
+            for (const k of toRemove) grid.delete(k);
+
+            for (let x = 0; x < COLS; x++) {
+                for (let z = 0; z < DEPTH; z++) {
+                    const stack = [];
+                    for (let y = 0; y < ROWS; y++) {
+                        const k = keyOf(x, y, z);
+                        if (grid.has(k)) { stack.push(grid.get(k)); grid.delete(k); }
+                    }
+                    for (let i = 0; i < stack.length; i++) grid.set(keyOf(x, i, z), stack[i]);
+                }
+            }
+            return toRemove.size;
+        }
+
+        function lockPiece() {
+            if (!currentPiece) return;
+
+            const color = SHAPE_COLORS[currentPiece.colorIndex];
+            const positions = worldPositions(currentPiece.shape, currentPiece.position);
+
+            for (const p of positions) {
+                grid.set(keyOf(p.x, p.y, p.z), color);
+                const cube = createCube(color);
+                cube.position.set(p.x + 0.5, p.y + 0.5, p.z + 0.5);
+                blocksGroup.add(cube);
+            }
+
+            if (currentPiece.meshGroup) {
+                scene.remove(currentPiece.meshGroup);
+                currentPiece.meshGroup = null;
+            }
+            currentPiece = null;
+
+            let chain = 0, totalScoreAdd = 0, safety = 0;
+            while (safety++ < 30) {
+                const removed = detectAndClear();
+                if (removed === 0) break;
+                chain++;
+                totalScoreAdd += removed * 10 * chain;
+            }
+
+            if (totalScoreAdd > 0) {
+                score += totalScoreAdd;
+                scoreEl.textContent = score;
+                rebuildBlocks();
+                updateSpeed();
+            }
+
+            spawnPiece();
+        }
+
+        function rebuildBlocks() {
+            while (blocksGroup.children.length > 0) blocksGroup.remove(blocksGroup.children[0]);
+            for (const [k, color] of grid.entries()) {
+                const [x, y, z] = k.split(',').map(Number);
+                const cube = createCube(color);
+                cube.position.set(x + 0.5, y + 0.5, z + 0.5);
+                blocksGroup.add(cube);
+            }
+        }
+
+        function updateSpeed() {
+            if (!diffConf.autoDrop) return;
+            const base = diffConf.startInterval, min = diffConf.minInterval;
+            currentInterval = Math.max(min, base - score * diffConf.accel);
+            if (running && !paused && gameInterval) {
+                clearInterval(gameInterval);
+                gameInterval = setInterval(step, currentInterval);
+            }
+        }
+
+        function step() {
+            if (!running || gameOver || paused) return;
+            if (!currentPiece) { spawnPiece(); return; }
+            if (!movePiece(0, -1, 0)) lockPiece();
+        }
+
+        function updateTimerDisplay() {
+            if (!running) return;
+            let elapsed = performance.now() - gameStartTime - totalPauseTime;
+            if (paused) elapsed -= (performance.now() - pauseStartTime);
+            const sec = Math.max(0, Math.floor(elapsed / 1000));
+            const m = String(Math.floor(sec / 60)).padStart(2, '0');
+            const s = String(sec % 60).padStart(2, '0');
+            timerEl.textContent = `${m}:${s}`;
+        }
+
+        function togglePause() {
+            if (!running || gameOver) return;
+
+            if (!paused) {
+                paused = true;
+                pauseStartTime = performance.now();
+                if (gameInterval) { clearInterval(gameInterval); gameInterval = null; }
+                controls.enabled = false;
+                pauseOverlay.style.display = 'flex';
+                btnPause.textContent = '继续';
+                btnPause.classList.add('paused');
+            } else {
+                paused = false;
+                totalPauseTime += performance.now() - pauseStartTime;
+                if (diffConf.autoDrop && running && !gameOver) {
+                    gameInterval = setInterval(step, currentInterval);
+                }
+                controls.enabled = true;
+                pauseOverlay.style.display = 'none';
+                btnPause.textContent = '暂停';
+                btnPause.classList.remove('paused');
+            }
+        }
+
+        function resumeGame() {
+            if (paused) togglePause();
+        }
+
+        function startGame() {
+            grid.clear();
+            while (blocksGroup.children.length > 0) blocksGroup.remove(blocksGroup.children[0]);
+            if (currentPiece && currentPiece.meshGroup) {
+                scene.remove(currentPiece.meshGroup);
+                currentPiece.meshGroup = null;
+            }
+            currentPiece = null;
+            nextPiece = null;
+            score = 0;
+            scoreEl.textContent = '0';
+            finalScoreEl.textContent = '0';
+            gameOver = false;
+            running = true;
+            paused = false;
+
+            gameStartTime = performance.now();
+            totalPauseTime = 0;
+            pauseStartTime = 0;
+            timerEl.textContent = '00:00';
+
+            diffTagEl.textContent = diffConf.label;
+            currentInterval = diffConf.startInterval;
+
+            overlay.style.display = 'none';
+            startCard.style.display = 'none';
+            overCard.style.display = 'none';
+            pauseOverlay.style.display = 'none';
+            btnPause.textContent = '暂停';
+            btnPause.classList.remove('paused');
+            controls.enabled = true;
+
+            nextPiece = randomPiece();
+            spawnPiece();
+
+            if (gameInterval) { clearInterval(gameInterval); gameInterval = null; }
+            if (diffConf.autoDrop) {
+                gameInterval = setInterval(step, currentInterval);
+            }
+        }
+
+        function triggerGameOver() {
+            gameOver = true;
+            running = false;
+            paused = false;
+            if (gameInterval) { clearInterval(gameInterval); gameInterval = null; }
+
+            finalScoreEl.textContent = score;
+            startCard.style.display = 'none';
+            overCard.style.display = 'flex';
+            overlay.style.display = 'flex';
+            pauseOverlay.style.display = 'none';
+            btnPause.textContent = '暂停';
+            btnPause.classList.remove('paused');
+            controls.enabled = true;
+
+            if (currentPiece && currentPiece.meshGroup) {
+                scene.remove(currentPiece.meshGroup);
+                currentPiece.meshGroup = null;
+            }
+            currentPiece = null;
+        }
+
+        function backToMenu() {
+            running = false;
+            gameOver = true;
+            paused = false;
+            if (gameInterval) { clearInterval(gameInterval); gameInterval = null; }
+
+            grid.clear();
+            while (blocksGroup.children.length > 0) blocksGroup.remove(blocksGroup.children[0]);
+            if (currentPiece && currentPiece.meshGroup) {
+                scene.remove(currentPiece.meshGroup);
+                currentPiece.meshGroup = null;
+            }
+            currentPiece = null;
+            nextPiece = null;
+            score = 0;
+            scoreEl.textContent = '0';
+            finalScoreEl.textContent = '0';
+            timerEl.textContent = '00:00';
+
+            startCard.style.display = 'flex';
+            overCard.style.display = 'none';
+            overlay.style.display = 'flex';
+            pauseOverlay.style.display = 'none';
+            btnPause.textContent = '暂停';
+            btnPause.classList.remove('paused');
+            controls.enabled = true;
+        }
+
+        // ================= 事件绑定 =================
+        btnBack.addEventListener('click', (e) => { e.preventDefault(); backToMenu(); });
+        btnBack.addEventListener('pointerdown', (e) => e.preventDefault());
+
+        btnPause.addEventListener('click', (e) => { e.preventDefault(); togglePause(); });
+        btnPause.addEventListener('pointerdown', (e) => e.preventDefault());
+
+        btnResume.addEventListener('click', (e) => { e.preventDefault(); resumeGame(); });
+        pauseOverlay.addEventListener('click', (e) => {
+            if (e.target === pauseOverlay) resumeGame();
+        });
+
+        document.querySelectorAll('.diff-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                diffKey = btn.dataset.diff;
+                diffConf = DIFFICULTIES[diffKey];
+                startGame();
+            });
+        });
+
+        // ================= 键盘 =================
+        window.addEventListener('keydown', (e) => {
+            if (overlay.style.display === 'flex') return;
+
+            if (paused) {
+                if (e.code === 'KeyP') { e.preventDefault(); togglePause(); }
+                if (e.code === 'Escape') { e.preventDefault(); backToMenu(); }
+                return;
+            }
+            if (gameOver) return;
+
+            switch (e.code) {
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    if (movePiece(-1, 0, 0)) flashAxis('x', false, false);
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    if (movePiece(1, 0, 0)) flashAxis('x', true, false);
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    if (movePiece(0, 0, -1)) flashAxis('z', false, false);
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    if (movePiece(0, 0, 1)) flashAxis('z', true, false);
+                    break;
+                case 'KeyQ':
+                case 'KeyE':
+                    e.preventDefault();
+                    tryRotate('y');
+                    flashAxis('y', true, true);
+                    break;
+                case 'KeyW':
+                case 'KeyS':
+                    e.preventDefault();
+                    tryRotate('x');
+                    flashAxis('x', true, true);
+                    break;
+                case 'KeyA':
+                case 'KeyD':
+                    e.preventDefault();
+                    tryRotate('z');
+                    flashAxis('z', true, true);
+                    break;
+                case 'Space':
+                    e.preventDefault();
+                    hardDrop();
+                    break;
+                case 'KeyP':
+                    e.preventDefault();
+                    togglePause();
+                    break;
+                case 'KeyR':
+                    e.preventDefault();
+                    startGame();
+                    break;
+                case 'Escape':
+                    e.preventDefault();
+                    backToMenu();
+                    break;
+            }
+        });
+        window.addEventListener('keydown', e => { if (e.code === 'Space') e.preventDefault(); }, false);
+
+        // ================= 移动端虚拟按键 =================
+        function bindHoldMove(btn, axis, sign) {
+            let timer = null, interval = null;
+            const action = () => {
+                let ok = false;
+                if (axis === 'x') ok = movePiece(sign, 0, 0);
+                else if (axis === 'z') ok = movePiece(0, 0, sign);
+                if (ok) flashAxis(axis, sign > 0, false);
+            };
+            const stop = () => {
+                if (timer) { clearTimeout(timer); timer = null; }
+                if (interval) { clearInterval(interval); interval = null; }
+            };
+            const start = (e) => {
+                e.preventDefault();
+                if (!running || gameOver || paused) return;
+                stop();
+                action();
+                timer = setTimeout(() => { interval = setInterval(action, 78); }, 260);
+            };
+            btn.addEventListener('pointerdown', start);
+            btn.addEventListener('pointerup', stop);
+            btn.addEventListener('pointercancel', stop);
+            btn.addEventListener('pointerleave', stop);
+            btn.addEventListener('contextmenu', e => e.preventDefault());
+        }
+
+        function bindRotateTap(btn, axis) {
+            btn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                if (!running || gameOver || paused) return;
+                tryRotate(axis);
+                flashAxis(axis, true, true);
+            });
+            btn.addEventListener('contextmenu', e => e.preventDefault());
+        }
+
+        bindHoldMove(document.getElementById('btnXMinus'), 'x', -1);
+        bindHoldMove(document.getElementById('btnXPlus'),  'x',  1);
+        bindHoldMove(document.getElementById('btnZMinus'), 'z', -1);
+        bindHoldMove(document.getElementById('btnZPlus'),  'z',  1);
+
+        bindRotateTap(document.getElementById('btnRotX'), 'x');
+        bindRotateTap(document.getElementById('btnRotY'), 'y');
+        bindRotateTap(document.getElementById('btnRotZ'), 'z');
+
+        const btnDrop = document.getElementById('btnDrop');
+        btnDrop.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            if (running && !gameOver && !paused) hardDrop();
+        });
+        btnDrop.addEventListener('contextmenu', e => e.preventDefault());
+
+        // ================= 相机自适应 =================
+        function adjustCamera() {
+            const aspect = window.innerWidth / window.innerHeight;
+            if (aspect < 0.8) {
+                camera.fov = 60;
+                camera.position.set(19, 23, 30);
+                controls.target.set(COLS / 2, ROWS / 2.4, DEPTH / 2);
+            } else if (aspect < 1.25) {
+                camera.fov = 54;
+                camera.position.set(15, 18, 24);
+                controls.target.set(COLS / 2, ROWS / 2.8, DEPTH / 2);
+            } else {
+                camera.fov = 45;
+                camera.position.set(12, 14, 18);
+                controls.target.set(COLS / 2, ROWS / 3, DEPTH / 2);
+            }
+            camera.updateProjectionMatrix();
+            controls.update();
+        }
+        adjustCamera();
+        layoutGizmo();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            adjustCamera();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            layoutGizmo();
+        });
+
+        // ================= 渲染循环 =================
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            updateGizmoHighlight();
+            renderGizmo();
+            updateTimerDisplay();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // ================= 初始化 =================
+        overlay.style.display = 'flex';
+        startCard.style.display = 'flex';
+        overCard.style.display = 'none';
+        currentPiece = null;
+        controls.target.set(COLS / 2, ROWS / 3, DEPTH / 2);
+        controls.update();
+    </script>
+</body>
+</html>
