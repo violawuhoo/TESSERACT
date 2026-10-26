@@ -919,36 +919,61 @@
             scene.add(group);
         }
 
+        function nxtShade(hex, f) {
+            const n = parseInt(hex.slice(1), 16);
+            let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+            r = Math.round(r * f); g = Math.round(g * f); b = Math.round(b * f);
+            return `rgb(${r},${g},${b})`;
+        }
+        function nxtPoly(pts, fill) {
+            nextCtx.beginPath();
+            nextCtx.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) nextCtx.lineTo(pts[i][0], pts[i][1]);
+            nextCtx.closePath();
+            nextCtx.fillStyle = fill;
+            nextCtx.fill();
+        }
+
+        // 等距(isometric)3D 预览：每个格子画成带高度的小立方体，正确显示 y 轴立体形状
         function drawNextPiece() {
             const W = nextCanvas.width, H = nextCanvas.height;
             nextCtx.clearRect(0, 0, W, H);
             if (!nextPiece) return;
 
-            let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-            for (const [x, y, z] of nextPiece.shape) {
-                if (x < minX) minX = x; if (x > maxX) maxX = x;
-                if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
-            }
-            const sw = maxX - minX + 1, sd = maxZ - minZ + 1;
-            const pad = 14;
-            const cell = Math.min((W - pad * 2) / sw, (H - pad * 2) / sd);
-            const ox = (W - sw * cell) / 2, oy = (H - sd * cell) / 2;
-            const color = SHAPE_COLORS[nextPiece.colorIndex];
-            const hex = '#' + color.toString(16).padStart(6, '0');
+            const hex = '#' + SHAPE_COLORS[nextPiece.colorIndex].toString(16).padStart(6, '0');
+            const s = 30;            // 立方体基准尺寸
+            const ux = s * 0.5;      // 水平半步
+            const uy = s * 0.30;     // 顶面菱形半高
+            const hz = s * 0.55;     // 侧面竖向深度
 
-            for (const [x, y, z] of nextPiece.shape) {
-                const px = ox + (x - minX) * cell, py = oy + (z - minZ) * cell;
-                const inset = 1.5;
-                nextCtx.save();
-                nextCtx.fillStyle = hex;
-                nextCtx.shadowColor = hex;
-                nextCtx.shadowBlur = 8;
-                roundRect(nextCtx, px + inset, py + inset, cell - inset * 2, cell - inset * 2, 5);
-                nextCtx.fill();
-                nextCtx.restore();
-                nextCtx.fillStyle = 'rgba(255,255,255,0.45)';
-                roundRect(nextCtx, px + 4, py + 4, cell - 10, cell - 10, 3);
-                nextCtx.fill();
+            const proj = nextPiece.shape.map(([x, y, z]) => ({
+                x, y, z,
+                bx: (x - z) * ux,
+                by: (x + z) * uy - y * hz
+            }));
+
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            for (const p of proj) {
+                minX = Math.min(minX, p.bx - ux);
+                maxX = Math.max(maxX, p.bx + ux);
+                minY = Math.min(minY, p.by - uy);
+                maxY = Math.max(maxY, p.by + uy + hz);
+            }
+            const cw = maxX - minX, ch = maxY - minY;
+            const ox = (W - cw) / 2 - minX;
+            const oy = (H - ch) / 2 - minY;
+
+            // 从后往前画，保证遮挡正确
+            const order = proj.slice().sort((a, b) => (a.x + a.z) - (b.x + b.z) || a.y - b.y);
+
+            for (const p of order) {
+                const cx = ox + p.bx, cy = oy + p.by;
+                const top = [[cx, cy - uy], [cx + ux, cy], [cx, cy + uy], [cx - ux, cy]];
+                const left = [[cx - ux, cy], [cx, cy + uy], [cx, cy + uy + hz], [cx - ux, cy + hz]];
+                const right = [[cx + ux, cy], [cx, cy + uy], [cx, cy + uy + hz], [cx + ux, cy + hz]];
+                nxtPoly(right, nxtShade(hex, 0.45));
+                nxtPoly(left, nxtShade(hex, 0.68));
+                nxtPoly(top, hex);
             }
         }
 
