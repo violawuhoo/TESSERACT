@@ -85,6 +85,15 @@
             font-variant-numeric: tabular-nums;
             letter-spacing: -1px;
         }
+        .score-grid {
+            display: flex;
+            gap: 22px;
+        }
+        .score-stat { flex: 1; }
+        .score-grid .score-value {
+            font-size: 34px;
+            margin: 4px 0 6px;
+        }
         .meta-row {
             display: flex;
             align-items: center;
@@ -305,6 +314,8 @@
             background: rgba(255, 228, 230, 0.94);
             box-shadow: 0 1px 4px rgba(180, 130, 135, 0.18);
         }
+        .mc-drop-row { margin-top: 6px; }
+        .mc-drop { font-size: 17px; font-weight: 800; letter-spacing: 2px; }
 
         @media (pointer: coarse) {
             #mobile-controls { display: flex; }
@@ -518,8 +529,10 @@
 
         /* 小屏适配 */
         @media (max-width: 480px) {
-            .score-card { padding: 10px 16px 12px; min-width: 118px; border-radius: 18px; }
+            .score-card { padding: 10px 16px 12px; min-width: 132px; border-radius: 18px; }
             .score-value { font-size: 34px; margin: 3px 0 7px; }
+            .score-grid { gap: 16px; }
+            .score-grid .score-value { font-size: 28px; margin: 3px 0 5px; }
             .score-label { font-size: 9px; }
             .meta-row { font-size: 10.5px; gap: 8px; }
             .diff-tag { font-size: 9px; padding: 2px 7px; }
@@ -542,8 +555,16 @@
     <div id="hud">
         <div class="hud-left">
             <div class="score-card panel">
-                <div class="score-label">分数</div>
-                <div class="score-value" id="score">0</div>
+                <div class="score-grid">
+                    <div class="score-stat">
+                        <div class="score-label">分数</div>
+                        <div class="score-value" id="score">0</div>
+                    </div>
+                    <div class="score-stat">
+                        <div class="score-label">积木</div>
+                        <div class="score-value" id="pieces">0</div>
+                    </div>
+                </div>
                 <div class="meta-row">
                     <span class="meta-time" id="timer">00:00</span>
                     <span class="diff-tag" id="diffTag">中等</span>
@@ -589,8 +610,9 @@
             <button class="mc-btn rot" id="btnRotZ" data-axis="z" aria-label="绕Z轴旋转">
                 <span class="axis-text">Z</span><span class="rot-icon">↻</span>
             </button>
-            <button class="mc-btn drop" id="btnDrop" aria-label="落底确认">⤓</button>
-            <button class="mc-btn" id="btnView" aria-label="回正视角">回正</button>
+        </div>
+        <div class="mc-row mc-drop-row">
+            <button class="mc-btn drop mc-drop" id="btnDrop" aria-label="一键落底">⤓ 落底</button>
         </div>
     </div>
 
@@ -598,7 +620,7 @@
     <div id="desktop-tips">
         <kbd>←</kbd><kbd>→</kbd> X轴 &nbsp;<kbd>↑</kbd><kbd>↓</kbd> Z轴 &nbsp;·&nbsp;
         <kbd>Q</kbd><kbd>E</kbd> 绕Y &nbsp;<kbd>W</kbd><kbd>S</kbd> 绕X &nbsp;<kbd>A</kbd><kbd>D</kbd> 绕Z &nbsp;·&nbsp;
-        <kbd>空格</kbd> 落底 &nbsp;·&nbsp; <kbd>P</kbd> 暂停
+        <kbd>空格</kbd> 落底 &nbsp;·&nbsp; <kbd>P</kbd> 暂停 &nbsp;·&nbsp; <kbd>C</kbd>/点击坐标 回正
     </div>
 
     <!-- 暂停覆盖层 -->
@@ -900,6 +922,14 @@
         const gizmoCanvas = gizmoRenderer.domElement;
         gizmoCanvas.id = 'gizmo-canvas';
         document.getElementById('gizmo-wrap').appendChild(gizmoCanvas);
+        // 点击坐标系（方位指示）自动回正视角（移动端「回正」按钮已取消，改由此处触发）
+        gizmoCanvas.style.pointerEvents = 'auto';
+        gizmoCanvas.style.cursor = 'pointer';
+        gizmoCanvas.title = '点击重置视角';
+        gizmoCanvas.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            resetView();
+        });
 
         const gizmoAxes = {};
         function createAxis(color, name) {
@@ -994,6 +1024,7 @@
         let currentPiece = null;
         let nextPiece = null;
         let score = 0;
+        let pieces = 0; // 已落下的积木（方块）数
         let gameOver = true;
         let gameInterval = null;
         let currentInterval = diffConf.startInterval;
@@ -1108,6 +1139,7 @@
         }
 
         const scoreEl = document.getElementById('score');
+        const piecesEl = document.getElementById('pieces');
         const timerEl = document.getElementById('timer');
         const finalScoreEl = document.getElementById('finalScore');
         const diffTagEl = document.getElementById('diffTag');
@@ -1495,6 +1527,8 @@
                 currentPiece.meshGroup = null;
             }
             currentPiece = null;
+            pieces++;
+            if (piecesEl) piecesEl.textContent = pieces;
 
             let chain = 0, totalScoreAdd = 0, safety = 0;
             const clearedCells = [];
@@ -1602,6 +1636,8 @@
             nextPiece = null;
             score = 0;
             scoreEl.textContent = '0';
+            pieces = 0;
+            if (piecesEl) piecesEl.textContent = '0';
             finalScoreEl.textContent = '0';
             gameOver = false;
             running = true;
@@ -1680,6 +1716,8 @@
             nextPiece = null;
             score = 0;
             scoreEl.textContent = '0';
+            pieces = 0;
+            if (piecesEl) piecesEl.textContent = '0';
             finalScoreEl.textContent = '0';
             timerEl.textContent = '00:00';
 
@@ -1837,13 +1875,6 @@
             if (running && !gameOver && !paused) hardDrop();
         });
         btnDrop.addEventListener('contextmenu', e => e.preventDefault());
-
-        const btnView = document.getElementById('btnView');
-        btnView.addEventListener('pointerdown', (e) => {
-            e.preventDefault();
-            resetView();
-        });
-        btnView.addEventListener('contextmenu', e => e.preventDefault());
 
         // ================= 相机自适应 =================
         function adjustCamera() {
