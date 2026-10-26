@@ -909,6 +909,106 @@
         const blocksGroup = new THREE.Group();
         scene.add(blocksGroup);
 
+        // ================= 消层反馈特效（juice） =================
+        const effectsGroup = new THREE.Group();
+        scene.add(effectsGroup);
+        const activeEffects = [];
+        let lastFrameTime = performance.now();
+        let audioCtx = null;
+
+        function ensureAudio() {
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+            } catch (e) { audioCtx = null; }
+        }
+        function playClearSound(chain) {
+            ensureAudio();
+            if (!audioCtx) return;
+            const t0 = audioCtx.currentTime;
+            const notes = Math.min(chain, 3);
+            for (let i = 0; i < notes; i++) {
+                const t = t0 + i * 0.07;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                const freq = 523.25 * Math.pow(2, (Math.min(chain - 1, 11) + i * 2) / 12);
+                osc.frequency.setValueAtTime(freq, t);
+                gain.gain.setValueAtTime(0.0001, t);
+                gain.gain.exponentialRampToValueAtTime(0.22, t + 0.012);
+                gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+                osc.connect(gain).connect(audioCtx.destination);
+                osc.start(t);
+                osc.stop(t + 0.2);
+            }
+        }
+        function spawnClearEffect(cells, chain) {
+            if (!cells.length) return;
+            const big = chain > 1 || cells.length >= COLS;
+            const shardCount = cells.length > 40 ? 3 : (big ? 7 : 5);
+            for (const c of cells) {
+                const cx = c.x + 0.5, cy = c.y + 0.5, cz = c.z + 0.5;
+                const col = new THREE.Color(c.color);
+                const flashMat = new THREE.MeshBasicMaterial({
+                    color: 0xffffff, transparent: true, opacity: 0.9,
+                    blending: THREE.AdditiveBlending, depthWrite: false
+                });
+                const flash = new THREE.Mesh(sharedGeometry, flashMat);
+                flash.position.set(cx, cy, cz);
+                flash.scale.setScalar(1.05);
+                effectsGroup.add(flash);
+                let ft = 0; const fd = 0.32;
+                activeEffects.push({
+                    update(dt) {
+                        ft += dt; const k = ft / fd;
+                        if (k >= 1) { effectsGroup.remove(flash); flashMat.dispose(); return false; }
+                        flash.scale.setScalar(1.05 + k * 0.7);
+                        flashMat.opacity = 0.9 * (1 - k);
+                        return true;
+                    },
+                    dispose() { effectsGroup.remove(flash); flashMat.dispose(); }
+                });
+                for (let i = 0; i < shardCount; i++) {
+                    const sMat = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 1 });
+                    const shard = new THREE.Mesh(sharedGeometry, sMat);
+                    shard.scale.setScalar(0.26 + Math.random() * 0.12);
+                    shard.position.set(cx, cy, cz);
+                    const speed = 2.5 + Math.random() * 2.5 + chain * 0.4;
+                    const dir = new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1)
+                        .normalize().multiplyScalar(speed);
+                    const angVel = new THREE.Vector3((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10);
+                    effectsGroup.add(shard);
+                    const life = 0.6 + Math.random() * 0.25; let st = 0;
+                    activeEffects.push({
+                        update(dt) {
+                            st += dt;
+                            if (st >= life) { effectsGroup.remove(shard); sMat.dispose(); return false; }
+                            dir.y -= 6.5 * dt;
+                            shard.position.addScaledVector(dir, dt);
+                            shard.rotation.x += angVel.x * dt;
+                            shard.rotation.y += angVel.y * dt;
+                            shard.rotation.z += angVel.z * dt;
+                            sMat.opacity = 1 - st / life;
+                            return true;
+                        },
+                        dispose() { effectsGroup.remove(shard); sMat.dispose(); }
+                    });
+                }
+            }
+            if (big) {
+                const op = Math.min(0.5, 0.25 + chain * 0.06);
+                const fMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false });
+                const fBox = new THREE.Mesh(new THREE.BoxGeometry(COLS, ROWS, DEPTH), fMat);
+                fBox.position.set(COLS / 2, ROWS / 2, DEPTH / 2);
+                effectsGroup.add(fBox);
+                let ft = 0; const fd = 0.35;
+                activeEffects.push({
+                    update(dt) { ft += dt; const k = ft / fd; if (k >= 1) { effectsGroup.remove(fBox); fMat.dispose(); fBox.geometry.dispose(); return false; } fMat.opacity = op * (1 - k); return true; },
+                    dispose() { effectsGroup.remove(fBox); fMat.dispose(); fBox.geometry.dispose(); }
+                });
+            }
+        }
+
         const scoreEl = document.getElementById('score');
         const timerEl = document.getElementById('timer');
         const finalScoreEl = document.getElementById('finalScore');
@@ -1186,8 +1286,13 @@
                 }
             }
 
-            if (toRemove.size === 0) return 0;
-            for (const k of toRemove) grid.delete(k);
+            if (toRemove.size === 0) return { count: 0, cells: [] };
+            const cells = [];
+            for (const k of toRemove) {
+                const [x, y, z] = k.split(',').map(Number);
+                cells.push({ x, y, z, color: grid.get(k) });
+                grid.delete(k);
+            }
 
             for (let x = 0; x < COLS; x++) {
                 for (let z = 0; z < DEPTH; z++) {
@@ -1199,7 +1304,7 @@
                     for (let i = 0; i < stack.length; i++) grid.set(keyOf(x, i, z), stack[i]);
                 }
             }
-            return toRemove.size;
+            return { count: cells.length, cells };
         }
 
         function lockPiece() {
@@ -1223,16 +1328,20 @@
             currentPiece = null;
 
             let chain = 0, totalScoreAdd = 0, safety = 0;
+            const clearedCells = [];
             while (safety++ < 30) {
-                const removed = detectAndClear();
-                if (removed === 0) break;
+                const r = detectAndClear();
+                if (r.count === 0) break;
                 chain++;
-                totalScoreAdd += removed * 10 * chain;
+                totalScoreAdd += r.count * 10 * chain;
+                for (const c of r.cells) clearedCells.push(c);
             }
 
             if (totalScoreAdd > 0) {
                 score += totalScoreAdd;
                 scoreEl.textContent = score;
+                spawnClearEffect(clearedCells, chain);
+                playClearSound(chain);
                 rebuildBlocks();
                 updateSpeed();
             }
@@ -1248,6 +1357,11 @@
                 cube.position.set(x + 0.5, y + 0.5, z + 0.5);
                 blocksGroup.add(cube);
             }
+        }
+
+        function clearEffects() {
+            for (const e of activeEffects) e.dispose();
+            activeEffects.length = 0;
         }
 
         function updateSpeed() {
@@ -1305,6 +1419,7 @@
         }
 
         function startGame() {
+            ensureAudio();
             grid.clear();
             while (blocksGroup.children.length > 0) blocksGroup.remove(blocksGroup.children[0]);
             if (currentPiece && currentPiece.meshGroup) {
@@ -1365,6 +1480,7 @@
                 currentPiece.meshGroup = null;
             }
             clearGhost();
+            clearEffects();
             currentPiece = null;
         }
 
@@ -1381,6 +1497,7 @@
                 currentPiece.meshGroup = null;
             }
             clearGhost();
+            clearEffects();
             currentPiece = null;
             nextPiece = null;
             score = 0;
@@ -1583,10 +1700,19 @@
         // ================= 渲染循环 =================
         function animate() {
             requestAnimationFrame(animate);
+            const now = performance.now();
+            const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
+            lastFrameTime = now;
             controls.update();
             updateGizmoHighlight();
             renderGizmo();
             updateTimerDisplay();
+            for (let i = activeEffects.length - 1; i >= 0; i--) {
+                if (!activeEffects[i].update(dt)) {
+                    activeEffects[i].dispose();
+                    activeEffects.splice(i, 1);
+                }
+            }
             renderer.render(scene, camera);
         }
         animate();
