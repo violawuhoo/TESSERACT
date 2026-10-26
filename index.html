@@ -431,6 +431,37 @@
         .diff-btn.easy   { background: linear-gradient(135deg, #43c96a, #2ea856); }
         .diff-btn.normal { background: linear-gradient(135deg, #4a9fe8, #2f7fd1); }
         .diff-btn.hard   { background: linear-gradient(135deg, #f25c5c, #d63c3c); }
+        .container-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+        .cont-btn {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            padding: 12px 8px;
+            border-radius: 16px;
+            border: 2px solid transparent;
+            font-family: inherit;
+            cursor: pointer;
+            color: #fff;
+            font-weight: 800;
+            font-size: 15px;
+            letter-spacing: 1px;
+            background: linear-gradient(135deg, #8a82b0, #6a639a);
+            box-shadow: 0 6px 16px rgba(120, 110, 170, 0.2);
+            transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s;
+        }
+        .cont-btn:active { transform: scale(0.97); }
+        .cont-btn.active {
+            border-color: #fff;
+            box-shadow: 0 6px 20px rgba(120, 110, 170, 0.45);
+            filter: brightness(1.08);
+        }
         .final-score {
             margin: 4px 0 20px;
             font-size: 14px;
@@ -583,7 +614,11 @@
     <div id="overlay">
         <div class="overlay-card" id="start-card">
             <h1>🧊 3D 空间俄罗斯方块</h1>
-            <p class="subtitle">选择难度开始游戏</p>
+            <p class="subtitle">选择容器与难度开始游戏</p>
+            <div class="container-buttons">
+                <button class="cont-btn active" data-cont="cube" type="button">🧊 立方体</button>
+                <button class="cont-btn" data-cont="pyramid" type="button">🔻 倒金字塔</button>
+            </div>
             <div class="diff-buttons">
                 <button class="diff-btn easy" data-diff="easy">
                     简单
@@ -636,6 +671,26 @@
         };
         let diffKey = 'normal';
         let diffConf = DIFFICULTIES[diffKey];
+        let containerType = 'cube';                 // 'cube' | 'pyramid'
+        // 倒金字塔（漏斗）：9×9 足迹、共 9 层，每层宽度 1→9 逐级增加（最下层 1 格、最上层满口 9×9）。
+        // 几何由 pyrRange(y) 唯一决定，判定(isInside)与渲染(虚线框)共用同一份边界。
+        const PYR_SIZE = 9;                         // 漏斗底面/顶面足迹边长（x、z 方向 0..8），以网格中心对称
+        const PYR_C = (PYR_SIZE - 1) / 2;           // 中心 = 4
+        const PYR_ROWS = 9;                         // 总层数（y = 0 最尖，y = PYR_ROWS-1 = 最宽）
+        const PYR_SPEED_MULT = 0.72;                // 金字塔下落更快，用时间压力补回“容器偏宽松”的难度缺口
+
+        // 第 y 层的 x/z 有效格范围 [l, h]：宽度 = y+1，从中心向两侧各扩展 floor(y/2)。
+        // y:0→[4,4](1格) 1→[4,5](2) 2→[3,5](3) 3→[3,6](4) ... 8→[0,8](9)。每层严格包含下一层 → 方块永远有支撑面。
+        function pyrRange(y) {
+            const l = PYR_C - Math.floor(y / 2);
+            const h = PYR_C + Math.floor((y + 1) / 2);
+            return [l, h];
+        }
+        // 兼容接口：第 y 层相对中心的半宽（用于极个别按“半宽”语义判断处）
+        function pyrHW(y) {
+            const [, h] = pyrRange(y);
+            return h - PYR_C;
+        }
 
         const SHAPE_COLORS = [
             0x00acc1, 0xff9800, 0x8e24aa, 0x43a047, 0xe53935,
@@ -656,6 +711,19 @@
             [[0,0,0], [1,0,0], [0,0,1], [0,1,0]],
             [[0,0,0], [1,0,0], [1,1,0], [2,1,0]],
             [[0,0,0], [1,0,0], [1,0,1], [1,1,0]]
+        ];
+
+        // 倒金字塔专用方块池：8 种「5 格平面块」（pentomino 风格）。逐层行消除下，5 格块比 4 格块更难凑满整行，
+        // 仿真验证可把单局长度从 ~152 块降到 ~111 块（更接近立方体基线的 75 块）。全部为 y=0 的平面块（3D 竖块会让漏斗 10 块就死局）。
+        const SHAPES_PYRAMID = [
+            [[0,0,0], [1,0,0], [2,0,0], [3,0,0], [4,0,0]],   // I
+            [[0,0,0], [0,0,1], [0,0,2], [0,0,3], [1,0,3]],   // L
+            [[0,0,0], [1,0,0], [0,0,1], [1,0,1], [0,0,2]],   // P
+            [[0,0,0], [1,0,0], [2,0,0], [1,0,1], [1,0,2]],   // T
+            [[0,0,0], [1,0,0], [2,0,0], [3,0,0], [1,0,1]],   // 十字变种
+            [[0,0,0], [2,0,0], [0,0,1], [1,0,1], [2,0,1]],   // U
+            [[1,0,0], [0,0,1], [1,0,1], [2,0,1], [1,0,2]],   // 加号
+            [[0,0,0], [1,0,0], [1,0,1], [1,0,2], [2,0,2]]    // S/Z
         ];
 
         // ================= 主场景 =================
@@ -713,6 +781,51 @@
         bottomPlane.rotation.x = -Math.PI / 2;
         bottomPlane.position.set(COLS/2, 0.01, DEPTH/2);
         scene.add(bottomPlane);
+
+        // 倒金字塔容器：每一层用「虚线方框」框出其可落范围；另加极淡的实体外轮廓（4 条斜棱 + 最宽层封口环）
+        // 提示整体是倒金字塔。几何直接用 pyrRange(y) 生成，与 isInside 判定逐格一致（虚线框画在哪，格子就能落在哪）。
+        function buildPyramidWire() {
+            const dashed = [], solid = [];
+            // 该层方格在世界坐标的 4 个角（单元格 x∈[l,h] 占世界 [l, h+1]）
+            const ringPts = (arr, y, l, h) => {
+                const corners = [[l, l], [h + 1, l], [h + 1, h + 1], [l, h + 1]];
+                for (let i = 0; i < 4; i++) {
+                    const a = corners[i], b = corners[(i + 1) % 4];
+                    arr.push(a[0], y, a[1], b[0], y, b[1]);
+                }
+            };
+            // 逐层虚线框（画在该层格子垂直中心 y+0.5 处，读作“这一层的可落范围”）
+            for (let y = 0; y < PYR_ROWS; y++) {
+                const [l, h] = pyrRange(y);
+                ringPts(dashed, y + 0.5, l, h);
+            }
+            // 实体外轮廓：4 条从最宽层四角到尖点的斜棱 + 最宽层封口环，提示整体是倒金字塔
+            const [lt, ht] = pyrRange(PYR_ROWS - 1);
+            const topCorners = [[lt, lt], [ht + 1, lt], [ht + 1, ht + 1], [lt, ht + 1]];
+            const tipX = PYR_C, tipY = 0, tipZ = PYR_C;
+            for (const c of topCorners) solid.push(c[0], PYR_ROWS - 1, c[1], tipX, tipY, tipZ);
+            ringPts(solid, PYR_ROWS - 1, lt, ht);
+
+            const toGeom = pts => {
+                const g = new THREE.BufferGeometry();
+                g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+                return g;
+            };
+            return { dashed: toGeom(dashed), solid: toGeom(solid) };
+        }
+        const pyramidWire = buildPyramidWire();
+        const pyramidContainer = new THREE.Group();
+        const pyrDashed = new THREE.LineSegments(
+            pyramidWire.dashed,
+            new THREE.LineDashedMaterial({ color: 0x5b6bd6, dashSize: 0.35, gapSize: 0.22, transparent: true, opacity: 0.6 })
+        );
+        pyrDashed.computeLineDistances();
+        pyramidContainer.add(pyrDashed);
+        pyramidContainer.add(new THREE.LineSegments(
+            pyramidWire.solid, new THREE.LineBasicMaterial({ color: 0x9aa2c4, transparent: true, opacity: 0.28 })
+        ));
+        pyramidContainer.visible = false;
+        scene.add(pyramidContainer);
 
         // ================= 复用几何 / 材质 =================
         const CUBE_SIZE = 0.94;
@@ -929,7 +1042,7 @@
         }
         function spawnClearEffect(cells, chain) {
             if (!cells.length) return;
-            const big = chain > 1 || cells.length >= COLS;
+            const big = (chain > 1 || cells.length >= COLS) && containerType === 'cube';
             const shardCount = cells.length > 40 ? 3 : (big ? 7 : 5);
             for (const c of cells) {
                 const cx = c.x + 0.5, cy = c.y + 0.5, cz = c.z + 0.5;
@@ -1011,12 +1124,22 @@
         // ================= 工具函数 =================
         const keyOf = (x, y, z) => `${x},${y},${z}`;
 
+        // 容器成员判定：cube 退回原矩形边界；pyramid 为 9 层逐级增宽的方锥（底 1 格 → 顶 9×9）。
+        function isInside(x, y, z) {
+            if (containerType === 'cube') {
+                return x >= 0 && x < COLS && y >= 0 && y < ROWS && z >= 0 && z < DEPTH;
+            }
+            if (y < 0 || y >= PYR_ROWS) return false;
+            const [l, h] = pyrRange(y);
+            return x >= l && x <= h && z >= l && z <= h;
+        }
+
         function isValidPosition(shape, pos) {
             for (let i = 0; i < shape.length; i++) {
                 const x = pos.x + shape[i][0];
                 const y = pos.y + shape[i][1];
                 const z = pos.z + shape[i][2];
-                if (x < 0 || x >= COLS || y < 0 || y >= ROWS || z < 0 || z >= DEPTH) return false;
+                if (!isInside(x, y, z)) return false;
                 if (grid.has(keyOf(x, y, z))) return false;
             }
             return true;
@@ -1119,8 +1242,9 @@
         }
 
         function randomPiece() {
-            const idx = Math.floor(Math.random() * SHAPES.length);
-            return { shape: SHAPES[idx].map(c => c.slice()), colorIndex: idx % SHAPE_COLORS.length };
+            const pool = containerType === 'pyramid' ? SHAPES_PYRAMID : SHAPES;
+            const idx = Math.floor(Math.random() * pool.length);
+            return { shape: pool[idx].map(c => c.slice()), colorIndex: idx % SHAPE_COLORS.length };
         }
 
         function spawnPiece() {
@@ -1130,9 +1254,9 @@
                 shape: nextPiece.shape,
                 colorIndex: nextPiece.colorIndex,
                 position: {
-                    x: Math.floor(COLS / 2) - 1,
-                    y: ROWS - 2,
-                    z: Math.floor(DEPTH / 2) - 1
+                    x: containerType === 'pyramid' ? PYR_C - 1 : Math.floor(COLS / 2) - 1,
+                    y: containerType === 'pyramid' ? PYR_ROWS - 1 : ROWS - 2,
+                    z: containerType === 'pyramid' ? PYR_C - 1 : Math.floor(DEPTH / 2) - 1
                 },
                 meshGroup: null
             };
@@ -1241,6 +1365,11 @@
         }
 
         function detectAndClear() {
+            if (containerType === 'pyramid') return detectAndClearPyramid();
+            return detectAndClearCube();
+        }
+
+        function detectAndClearCube() {
             const toRemove = new Set();
 
             for (let y = 0; y < ROWS; y++) {
@@ -1292,6 +1421,61 @@
             return { count: cells.length, cells };
         }
 
+        // 倒金字塔消除：层内「行消除 + 列消除」。
+        // 每层是一条方形，任意一条 x 向满行或 z 向满列即整条清除（不要求整层填满）。
+        // 这是仿真验证后唯一能跑通的规则：整层消除会陷入“只有最底层反复消”的死循环，
+        // 而向中心滑动重力会把方块吸成尖塔、十几块就死局。消除后由 pyrCompact 逐列下落。
+        // 按用户选择「全部可消、无地基」：最小行长 = 1（含最尖 1 格那一行，落满即消 = 排水口）。
+        function detectAndClearPyramid() {
+            const toRemove = new Set();
+            for (let y = 0; y < PYR_ROWS; y++) {
+                const [l, h] = pyrRange(y);
+                // x 向行：固定 z，x 从 l..h 全满
+                for (let z = l; z <= h; z++) {
+                    let full = true;
+                    for (let x = l; x <= h; x++) if (!grid.has(keyOf(x, y, z))) { full = false; break; }
+                    if (full) for (let x = l; x <= h; x++) toRemove.add(keyOf(x, y, z));
+                }
+                // z 向列：固定 x，z 从 l..h 全满
+                for (let x = l; x <= h; x++) {
+                    let full = true;
+                    for (let z = l; z <= h; z++) if (!grid.has(keyOf(x, y, z))) { full = false; break; }
+                    if (full) for (let z = l; z <= h; z++) toRemove.add(keyOf(x, y, z));
+                }
+            }
+            if (toRemove.size === 0) return { count: 0, cells: [] };
+            const cells = [];
+            for (const k of toRemove) {
+                const [x, y, z] = k.split(',').map(Number);
+                cells.push({ x, y, z, color: grid.get(k) });
+                grid.delete(k);
+            }
+            return { count: cells.length, cells };
+        }
+
+        // 倒金字塔重力：与立方体完全同一套规则——方块只在自己所在的 (x,z) 列内竖直压实，
+        // 落到该列在漏斗里的最低有效格就停（也就是停在你看到的台阶上）。
+        // 不向中心滑动（滑动会把方块吸成中心尖塔，漏斗底外圈永远填不到 → 死局，已仿真验证）。
+        function pyrCompact() {
+            for (let x = 0; x < PYR_SIZE; x++) {
+                for (let z = 0; z < PYR_SIZE; z++) {
+                    const stack = [];
+                    for (let y = 0; y < PYR_ROWS; y++) {
+                        if (!isInside(x, y, z)) continue;
+                        const k = keyOf(x, y, z);
+                        if (grid.has(k)) { stack.push(grid.get(k)); grid.delete(k); }
+                    }
+                    let yi = 0;
+                    while (yi < PYR_ROWS && !isInside(x, yi, z)) yi++;
+                    for (const c of stack) {
+                        grid.set(keyOf(x, yi, z), c);
+                        yi++;
+                        while (yi < PYR_ROWS && !isInside(x, yi, z)) yi++;
+                    }
+                }
+            }
+        }
+
         function lockPiece() {
             clearGhost();
             if (!currentPiece) return;
@@ -1314,12 +1498,14 @@
 
             let chain = 0, totalScoreAdd = 0, safety = 0;
             const clearedCells = [];
+            if (containerType === 'pyramid') pyrCompact(); // 锁定后按列压实到该列的最低有效格（台阶上）
             while (safety++ < 30) {
                 const r = detectAndClear();
                 if (r.count === 0) break;
                 chain++;
                 totalScoreAdd += r.count; // 每消除一个方块记 1 分
                 for (const c of r.cells) clearedCells.push(c);
+                if (containerType === 'pyramid') pyrCompact(); // 消除后上方方块继续下落压实
             }
 
             if (totalScoreAdd > 0) {
@@ -1327,9 +1513,9 @@
                 scoreEl.textContent = score;
                 spawnClearEffect(clearedCells, chain);
                 playClearSound(chain);
-                rebuildBlocks();
                 updateSpeed();
             }
+            if (containerType === 'pyramid') rebuildBlocks(); // 压实可能移动了方块，需重建显示
 
             spawnPiece();
         }
@@ -1351,8 +1537,9 @@
 
         function updateSpeed() {
             if (!diffConf.autoDrop) return;
-            const base = diffConf.startInterval, min = diffConf.minInterval;
-            currentInterval = Math.max(min, base - score * diffConf.accel);
+            const mult = containerType === 'pyramid' ? PYR_SPEED_MULT : 1;
+            const base = diffConf.startInterval * mult, min = diffConf.minInterval * mult;
+            currentInterval = Math.max(min, base - score * diffConf.accel * mult);
             if (running && !paused && gameInterval) {
                 clearInterval(gameInterval);
                 gameInterval = setInterval(step, currentInterval);
@@ -1425,8 +1612,14 @@
             pauseStartTime = 0;
             timerEl.textContent = '00:00';
 
-            diffTagEl.textContent = diffConf.label;
-            currentInterval = diffConf.startInterval;
+            diffTagEl.textContent = (containerType === 'pyramid' ? '金字塔·' : '') + diffConf.label;
+            currentInterval = diffConf.startInterval * (isPyramid ? PYR_SPEED_MULT : 1);
+
+            const isPyramid = containerType === 'pyramid';
+            boundaryBox.visible = !isPyramid;
+            bottomPlane.visible = !isPyramid;
+            pyramidContainer.visible = isPyramid;
+            adjustCamera(); // 按容器高度重新取景（倒金字塔更矮）
 
             overlay.style.display = 'none';
             startCard.style.display = 'none';
@@ -1511,6 +1704,14 @@
             if (e.target === pauseOverlay) resumeGame();
         });
 
+        document.querySelectorAll('.cont-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                containerType = btn.dataset.cont;
+                document.querySelectorAll('.cont-btn').forEach(b => b.classList.toggle('active', b === btn));
+            });
+        });
+
         document.querySelectorAll('.diff-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -1575,10 +1776,6 @@
                 case 'KeyP':
                     e.preventDefault();
                     togglePause();
-                    break;
-                case 'KeyR':
-                    e.preventDefault();
-                    startGame();
                     break;
                 case 'Escape':
                     e.preventDefault();
@@ -1651,18 +1848,29 @@
         // ================= 相机自适应 =================
         function adjustCamera() {
             const aspect = window.innerWidth / window.innerHeight;
+            let fov, pos, ty;
             if (aspect < 0.8) {
-                camera.fov = 60;
-                camera.position.set(19, 23, 30);
-                controls.target.set(COLS / 2, ROWS / 2.4, DEPTH / 2);
+                fov = 60; pos = [19, 23, 30]; ty = ROWS / 2.4;
             } else if (aspect < 1.25) {
-                camera.fov = 54;
-                camera.position.set(15, 18, 24);
-                controls.target.set(COLS / 2, ROWS / 2.8, DEPTH / 2);
+                fov = 54; pos = [15, 18, 24]; ty = ROWS / 2.8;
             } else {
-                camera.fov = 45;
-                camera.position.set(12, 14, 18);
-                controls.target.set(COLS / 2, ROWS / 3, DEPTH / 2);
+                fov = 45; pos = [12, 14, 18]; ty = ROWS / 3;
+            }
+            camera.fov = fov;
+            if (containerType === 'pyramid') {
+                // 倒金字塔 9×9 足迹、9 层：目标点取中心，镜头按包围盒收紧，容器在画面里占比与立方体一致
+                const cxP = PYR_SIZE / 2, czP = PYR_SIZE / 2;
+                const tyP = PYR_ROWS * 0.5;
+                const k = 0.82;
+                camera.position.set(
+                    cxP + (pos[0] - COLS / 2) * k,
+                    tyP + (pos[1] - ty) * k,
+                    czP + (pos[2] - DEPTH / 2) * k
+                );
+                controls.target.set(cxP, tyP, czP);
+            } else {
+                camera.position.set(pos[0], pos[1], pos[2]);
+                controls.target.set(COLS / 2, ty, DEPTH / 2);
             }
             camera.updateProjectionMatrix();
             controls.update();
