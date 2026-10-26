@@ -559,7 +559,7 @@
                 <span class="axis-text">Z</span><span class="rot-icon">↻</span>
             </button>
             <button class="mc-btn drop" id="btnDrop" aria-label="落底确认">⤓</button>
-            <button class="mc-btn" id="btnView" aria-label="切换视角">视角</button>
+            <button class="mc-btn" id="btnView" aria-label="回正视角">回正</button>
         </div>
     </div>
 
@@ -1422,7 +1422,7 @@
         window.addEventListener('keydown', (e) => {
             if (overlay.style.display === 'flex') return;
 
-            if (e.code === 'KeyC' && !e.repeat) { e.preventDefault(); cycleView(); return; }
+            if (e.code === 'KeyC' && !e.repeat) { e.preventDefault(); resetView(); return; }
 
             if (paused) {
                 if (e.code === 'KeyP') { e.preventDefault(); togglePause(); }
@@ -1542,7 +1542,7 @@
         const btnView = document.getElementById('btnView');
         btnView.addEventListener('pointerdown', (e) => {
             e.preventDefault();
-            cycleView();
+            resetView();
         });
         btnView.addEventListener('contextmenu', e => e.preventDefault());
 
@@ -1568,21 +1568,9 @@
         adjustCamera();
         layoutGizmo();
 
-        // 视角快捷键：在预设视角间循环，帮助建立空间感（C 键 / 移动端「视角」按钮）
-        const viewPresets = [
-            { name: '等距', pos: [12, 14, 18] },
-            { name: '俯视', pos: [COLS / 2, 42, 0.01] },
-            { name: '正视', pos: [COLS / 2, ROWS / 2, 42] },
-            { name: '侧视', pos: [42, ROWS / 2, DEPTH / 2] }
-        ];
-        let viewIndex = 0;
-        function cycleView() {
-            viewIndex = (viewIndex + 1) % viewPresets.length;
-            const v = viewPresets[viewIndex];
-            camera.position.set(v.pos[0], v.pos[1], v.pos[2]);
-            controls.target.set(COLS / 2, ROWS / 2, DEPTH / 2);
-            camera.updateProjectionMatrix();
-            controls.update();
+        // 视角快捷键：一键回正到默认等距视角，避免自由旋转/缩放后迷失方向（C 键 / 移动端「回正」按钮）
+        function resetView() {
+            adjustCamera();
         }
 
         window.addEventListener('resize', () => {
