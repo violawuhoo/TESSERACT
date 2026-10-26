@@ -668,8 +668,6 @@
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
 
         const controls = new OrbitControls(camera, renderer.domElement);
@@ -684,19 +682,8 @@
         // ================= 灯光 =================
         scene.add(new THREE.AmbientLight(0xffffff, 0.85));
 
-        const dirLight = new THREE.DirectionalLight(0xfff8ee, 0.85);
+        const dirLight = new THREE.DirectionalLight(0xfff8ee, 0.9);
         dirLight.position.set(10, 20, 10);
-        dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 1024;
-        dirLight.shadow.mapSize.height = 1024;
-        const d = 26;
-        dirLight.shadow.camera.left = -d;
-        dirLight.shadow.camera.right = d;
-        dirLight.shadow.camera.top = d;
-        dirLight.shadow.camera.bottom = -d;
-        dirLight.shadow.camera.near = 1;
-        dirLight.shadow.camera.far = 55;
-        dirLight.shadow.bias = -0.0005;
         scene.add(dirLight);
 
         const backLight = new THREE.PointLight(0xaaccff, 0.45);
@@ -746,8 +733,6 @@
 
         function createCube(color) {
             const cube = new THREE.Mesh(sharedGeometry, getMaterial(color));
-            cube.castShadow = true;
-            cube.receiveShadow = true;
             cube.add(new THREE.LineSegments(sharedEdges, sharedLineMaterial));
             return cube;
         }
@@ -1333,7 +1318,7 @@
                 const r = detectAndClear();
                 if (r.count === 0) break;
                 chain++;
-                totalScoreAdd += r.count * 10 * chain;
+                totalScoreAdd += r.count; // 每消除一个方块记 1 分
                 for (const c of r.cells) clearedCells.push(c);
             }
 
