@@ -420,10 +420,11 @@
             gap: 2px;
             padding: 14px 10px;
             border-radius: 16px;
-            border: 2px solid transparent;
+            border: 3px solid transparent;
+            position: relative;
             font-family: inherit;
             cursor: pointer;
-            transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s;
+            transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s, border-color 0.12s;
             color: #fff;
             font-weight: 800;
             font-size: 18px;
@@ -442,6 +443,12 @@
         .diff-btn.easy   { background: linear-gradient(135deg, #43c96a, #2ea856); }
         .diff-btn.normal { background: linear-gradient(135deg, #4a9fe8, #2f7fd1); }
         .diff-btn.hard   { background: linear-gradient(135deg, #f25c5c, #d63c3c); }
+        .diff-btn.active {
+            border-color: #fff;
+            transform: scale(1.04);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+            filter: brightness(1.12);
+        }
         .container-buttons {
             display: flex;
             gap: 10px;
@@ -456,7 +463,8 @@
             gap: 2px;
             padding: 12px 8px;
             border-radius: 16px;
-            border: 2px solid transparent;
+            border: 3px solid transparent;
+            position: relative;
             font-family: inherit;
             cursor: pointer;
             color: #fff;
@@ -465,13 +473,25 @@
             letter-spacing: 1px;
             background: linear-gradient(135deg, #8a82b0, #6a639a);
             box-shadow: 0 6px 16px rgba(120, 110, 170, 0.2);
-            transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s;
+            transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s, border-color 0.12s;
         }
         .cont-btn:active { transform: scale(0.97); }
         .cont-btn.active {
             border-color: #fff;
-            box-shadow: 0 6px 20px rgba(120, 110, 170, 0.45);
-            filter: brightness(1.08);
+            transform: scale(1.05);
+            box-shadow: 0 8px 24px rgba(120, 110, 170, 0.55);
+            filter: brightness(1.12);
+        }
+        .cont-btn.active::after,
+        .diff-btn.active::after {
+            content: '✔';
+            position: absolute;
+            top: 6px;
+            right: 9px;
+            font-size: 13px;
+            font-weight: 900;
+            color: #fff;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
         }
         .final-score {
             margin: 4px 0 20px;
@@ -646,7 +666,7 @@
                     简单
                     <span class="diff-desc">空中悬停 · 确认后落下</span>
                 </button>
-                <button class="diff-btn normal" data-diff="normal">
+                <button class="diff-btn normal active" data-diff="normal">
                     中等
                     <span class="diff-desc">缓慢自动下落</span>
                 </button>
@@ -1648,10 +1668,10 @@
             pauseStartTime = 0;
             timerEl.textContent = '00:00';
 
-            diffTagEl.textContent = (containerType === 'pyramid' ? '金字塔·' : '') + diffConf.label;
+            const isPyramid = containerType === 'pyramid';
+            diffTagEl.textContent = (isPyramid ? '金字塔·' : '') + diffConf.label;
             currentInterval = diffConf.startInterval * (isPyramid ? PYR_SPEED_MULT : 1);
 
-            const isPyramid = containerType === 'pyramid';
             boundaryBox.visible = !isPyramid;
             bottomPlane.visible = !isPyramid;
             pyramidContainer.visible = isPyramid;
@@ -1728,6 +1748,7 @@
             btnPause.textContent = '暂停';
             btnPause.classList.remove('paused');
             controls.enabled = true;
+            document.querySelectorAll('#start-card .diff-btn').forEach(b => b.classList.toggle('active', b.dataset.diff === diffKey));
         }
 
         // ================= 事件绑定 =================
@@ -1755,6 +1776,7 @@
                 e.preventDefault();
                 diffKey = btn.dataset.diff;
                 diffConf = DIFFICULTIES[diffKey];
+                btn.parentElement.querySelectorAll('.diff-btn').forEach(b => b.classList.toggle('active', b === btn));
                 startGame();
             });
         });
