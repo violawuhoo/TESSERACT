@@ -431,6 +431,7 @@
             letter-spacing: 4px;
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
             box-shadow: 0 6px 16px rgba(120, 110, 170, 0.2);
+            opacity: .72;
         }
         .diff-btn .diff-desc {
             font-size: 11px;
@@ -444,10 +445,11 @@
         .diff-btn.normal { background: linear-gradient(135deg, #4a9fe8, #2f7fd1); }
         .diff-btn.hard   { background: linear-gradient(135deg, #f25c5c, #d63c3c); }
         .diff-btn.active {
-            border-color: #fff;
+            opacity: 1;
+            border-color: #ffce54;
             transform: scale(1.04);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
-            filter: brightness(1.12);
+            box-shadow: 0 0 0 2px rgba(255, 206, 84, 0.5), 0 8px 22px rgba(0, 0, 0, 0.3);
+            filter: brightness(1.14);
         }
         .container-buttons {
             display: flex;
@@ -473,25 +475,16 @@
             letter-spacing: 1px;
             background: linear-gradient(135deg, #8a82b0, #6a639a);
             box-shadow: 0 6px 16px rgba(120, 110, 170, 0.2);
+            opacity: .72;
             transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s, border-color 0.12s;
         }
         .cont-btn:active { transform: scale(0.97); }
         .cont-btn.active {
-            border-color: #fff;
-            transform: scale(1.05);
-            box-shadow: 0 8px 24px rgba(120, 110, 170, 0.55);
+            opacity: 1;
+            border-color: #ffce54;
+            transform: scale(1.04);
+            box-shadow: 0 0 0 2px rgba(255, 206, 84, 0.5), 0 8px 22px rgba(120, 110, 170, 0.45);
             filter: brightness(1.12);
-        }
-        .cont-btn.active::after,
-        .diff-btn.active::after {
-            content: '✔';
-            position: absolute;
-            top: 6px;
-            right: 9px;
-            font-size: 13px;
-            font-weight: 900;
-            color: #fff;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
         }
         .final-score {
             margin: 4px 0 20px;
@@ -719,6 +712,7 @@
         const PYR_SIZE = 9;                         // 漏斗底面/顶面足迹边长（x、z 方向 0..8），以网格中心对称
         const PYR_C = (PYR_SIZE - 1) / 2;           // 中心 = 4
         const PYR_ROWS = 9;                         // 总层数（y = 0 最尖，y = PYR_ROWS-1 = 最宽）
+        const PYR_SPAWN_TOP = PYR_ROWS + 6;         // 出生通道顶：高出 6 层，留足 5 格竖条旋转成「垂直于底座」的空间（y∈[9,15) 共 6 层）
         const PYR_SPEED_MULT = 0.72;                // 金字塔下落更快，用时间压力补回“容器偏宽松”的难度缺口
 
         // 第 y 层的 x/z 有效格范围 [l, h]：宽度 = y+1，从中心向两侧各扩展 floor(y/2)。
@@ -752,20 +746,31 @@
             [[0,0,0], [0,0,1], [1,0,1], [1,0,2]],
             [[0,0,0], [1,0,0], [0,0,1], [0,1,0]],
             [[0,0,0], [1,0,0], [1,1,0], [2,1,0]],
-            [[0,0,0], [1,0,0], [1,0,1], [1,1,0]]
+            [[0,0,0], [1,0,0], [1,0,1], [1,1,0]],
+            [[0,0,0], [1,0,0], [2,0,0], [1,1,0]],   // T（两层）
+            [[0,0,0], [0,0,1], [0,1,0], [1,1,0]],   // Z（两层）
+            [[0,0,0], [1,0,0], [0,1,0], [0,1,1]]    // L（两层）
         ];
 
-        // 倒金字塔专用方块池：8 种「5 格平面块」（pentomino 风格）。逐层行消除下，5 格块比 4 格块更难凑满整行，
-        // 仿真验证可把单局长度从 ~152 块降到 ~111 块（更接近立方体基线的 75 块）。全部为 y=0 的平面块（3D 竖块会让漏斗 10 块就死局）。
+        // 倒金字塔专用方块池：5 格块（pentomino 风格）。逐层行消除下，5 格块比 4 格块更难凑满整行，
+        // 仿真验证可把单局长度从 ~152 块降到 ~111 块（更接近立方体基线的 75 块）。
+        // 含「平面块」与「两层块」两类：两层块带 y=1 的格子，配合更长的出生通道可旋转成垂直于底座的竖条。
         const SHAPES_PYRAMID = [
-            [[0,0,0], [1,0,0], [2,0,0], [3,0,0], [4,0,0]],   // I
+            // —— 平面块（y 全为 0）——
+            [[0,0,0], [1,0,0], [2,0,0], [3,0,0], [4,0,0]],   // I（绕 Z/X 旋转即变竖条）
             [[0,0,0], [0,0,1], [0,0,2], [0,0,3], [1,0,3]],   // L
             [[0,0,0], [1,0,0], [0,0,1], [1,0,1], [0,0,2]],   // P
             [[0,0,0], [1,0,0], [2,0,0], [1,0,1], [1,0,2]],   // T
             [[0,0,0], [1,0,0], [2,0,0], [3,0,0], [1,0,1]],   // 十字变种
             [[0,0,0], [2,0,0], [0,0,1], [1,0,1], [2,0,1]],   // U
             [[1,0,0], [0,0,1], [1,0,1], [2,0,1], [1,0,2]],   // 加号
-            [[0,0,0], [1,0,0], [1,0,1], [1,0,2], [2,0,2]]    // S/Z
+            [[0,0,0], [1,0,0], [1,0,1], [1,0,2], [2,0,2]],   // S/Z
+            // —— 两层块（含 y=1 格子）——
+            [[0,0,0], [1,0,0], [2,0,0], [0,1,0], [1,1,0]],   // P（两层）
+            [[0,0,0], [1,0,0], [2,0,0], [1,1,0], [2,1,0]],   // L（两层）
+            [[0,0,0], [1,0,0], [2,0,0], [3,0,0], [1,1,0]],   // 长条+凸起（两层）
+            [[0,0,0], [0,0,1], [0,1,0], [1,1,0], [1,1,1]],   // 角柱（两层）
+            [[0,0,0], [1,0,0], [0,1,0], [1,1,0], [2,1,0]]    // S（两层）
         ];
 
         // ================= 主场景 =================
@@ -1181,6 +1186,8 @@
             if (containerType === 'cube') {
                 return x >= 0 && x < COLS && y >= 0 && y < ROWS && z >= 0 && z < DEPTH;
             }
+            // 容器正上方的出生通道：y ∈ [PYR_ROWS, PYR_SPAWN_TOP)，x/z 限制在最宽层投影内
+            if (y >= PYR_ROWS && y < PYR_SPAWN_TOP) return x >= 0 && x < PYR_SIZE && z >= 0 && z < PYR_SIZE;
             if (y < 0 || y >= PYR_ROWS) return false;
             const [l, h] = pyrRange(y);
             return x >= l && x <= h && z >= l && z <= h;
@@ -1307,7 +1314,7 @@
                 colorIndex: nextPiece.colorIndex,
                 position: {
                     x: containerType === 'pyramid' ? PYR_C - 1 : Math.floor(COLS / 2) - 1,
-                    y: containerType === 'pyramid' ? PYR_ROWS - 1 : ROWS - 2,
+                    y: containerType === 'pyramid' ? PYR_ROWS + 3 : ROWS - 2,
                     z: containerType === 'pyramid' ? PYR_C - 1 : Math.floor(DEPTH / 2) - 1
                 },
                 meshGroup: null
@@ -1568,8 +1575,9 @@
                 spawnClearEffect(clearedCells, chain);
                 playClearSound(chain);
                 updateSpeed();
+                rebuildBlocks(); // 立方体/金字塔消除后 grid 已变更，必须重建显示层，否则被消方块仍留在画面
             }
-            if (containerType === 'pyramid') rebuildBlocks(); // 压实可能移动了方块，需重建显示
+            if (containerType === 'pyramid') rebuildBlocks(); // 金字塔锁定后 pyrCompact 会压实移动方块，需重建显示
 
             spawnPiece();
         }
@@ -1913,7 +1921,7 @@
             if (containerType === 'pyramid') {
                 // 倒金字塔 9×9 足迹、9 层：目标点取中心，镜头按包围盒收紧，容器在画面里占比与立方体一致
                 const cxP = PYR_SIZE / 2, czP = PYR_SIZE / 2;
-                const tyP = PYR_ROWS * 0.5;
+                const tyP = PYR_SPAWN_TOP * 0.5; // 含出生通道(高出6层)，让初始方块与竖条旋转都落在画面内
                 const k = 0.82;
                 camera.position.set(
                     cxP + (pos[0] - COLS / 2) * k,
