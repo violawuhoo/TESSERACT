@@ -3,21 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>3D 俄罗斯方块 · 空间消除</title>
+    <title>tesseract · 空间消除</title>
     <style>
         :root {
             --bg: #eef1f8;
-            --panel: rgba(255, 255, 255, 0.78);
-            --panel-border: rgba(150, 145, 195, 0.25);
-            --text-dark: #35355a;
-            --text-mid: #6a6a92;
-            --text-light: #9a9ab8;
-            --accent: #7b6fb0;
-            --axis-x: #b85c5c;
-            --axis-y: #5d8f6c;
-            --axis-z: #5c82b8;
+            --aurora-1: #e8ecff;
+            --aurora-2: #f3e9ff;
+            --aurora-3: #e6f7f4;
+            --panel: rgba(255, 255, 255, 0.7);
+            --panel-border: rgba(150, 145, 195, 0.3);
+            --text-dark: #2c2c4a;
+            --text-mid: #5f5f86;
+            --text-light: #8f8fb0;
+            --accent: #7c5cff;
+            --accent-soft: rgba(124, 92, 255, 0.14);
+            --axis-x: #e5484d;
+            --axis-y: #20a86b;
+            --axis-z: #3b82f6;
+            --shadow-soft: 0 6px 20px rgba(120, 110, 170, 0.14);
+            --shadow-strong: 0 14px 40px rgba(110, 95, 180, 0.22);
+            --radius-card: 22px;
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        button { touch-action: manipulation; }
         html, body {
             margin: 0; padding: 0;
             width: 100%; height: 100%;
@@ -25,7 +33,11 @@
             overscroll-behavior: none;
             position: fixed;
             font-family: 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-            background: var(--bg);
+            background:
+                radial-gradient(120% 120% at 12% 0%, var(--aurora-1) 0%, transparent 55%),
+                radial-gradient(120% 120% at 100% 18%, var(--aurora-2) 0%, transparent 52%),
+                radial-gradient(140% 120% at 50% 100%, var(--aurora-3) 0%, transparent 55%),
+                var(--bg);
             user-select: none;
             -webkit-user-select: none;
         }
@@ -66,8 +78,9 @@
 
         /* 分数卡片 */
         .score-card {
+            position: relative;
             padding: 12px 20px 14px;
-            border-radius: 22px;
+            border-radius: var(--radius-card);
             min-width: 132px;
         }
         .score-label {
@@ -320,6 +333,7 @@
         @media (pointer: coarse) {
             #mobile-controls { display: flex; }
         }
+        body.is-touch #mobile-controls { display: flex; }
 
         /* ===== 暂停覆盖层 ===== */
         #pause-overlay {
@@ -369,7 +383,7 @@
             align-items: center;
             justify-content: center;
             padding: 16px;
-            background: rgba(238, 241, 248, 0.88);
+            background: rgba(245, 247, 255, 0.6);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             overflow-y: auto;
@@ -377,11 +391,11 @@
         .overlay-card {
             width: 100%;
             max-width: 380px;
-            background: rgba(255, 255, 255, 0.92);
-            border: 1px solid rgba(160, 155, 205, 0.3);
+            background: rgba(255, 255, 255, 0.82);
+            border: 1px solid rgba(255, 255, 255, 0.6);
             border-radius: 26px;
-            padding: 28px 22px;
-            box-shadow: 0 20px 60px rgba(130, 120, 180, 0.22);
+            padding: 32px 24px;
+            box-shadow: 0 10px 34px rgba(90, 80, 140, 0.10);
             text-align: center;
             display: flex;
             flex-direction: column;
@@ -395,9 +409,9 @@
         }
         .overlay-card h1 {
             margin: 0;
-            font-size: 24px;
+            font-size: 28px;
             font-weight: 800;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
             color: var(--text-dark);
         }
         .overlay-card .subtitle {
@@ -409,52 +423,43 @@
         .diff-buttons {
             display: flex;
             flex-direction: column;
-            gap: 10px;
-            margin-bottom: 6px;
+            gap: 8px;
+            margin-bottom: 4px;
         }
         .diff-btn {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 2px;
-            padding: 14px 10px;
+            gap: 1px;
+            padding: 10px 8px;
             border-radius: 16px;
-            border: 3px solid transparent;
+            border: 1px solid rgba(150, 145, 195, 0.35);
             position: relative;
             font-family: inherit;
             cursor: pointer;
-            transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s, border-color 0.12s;
-            color: #fff;
+            transition: transform 0.12s ease, border-color 0.12s, background 0.12s;
+            color: var(--text-dark);
             font-weight: 800;
-            font-size: 18px;
-            letter-spacing: 4px;
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
-            box-shadow: 0 6px 16px rgba(120, 110, 170, 0.2);
-            opacity: .72;
-        }
-        .diff-btn .diff-desc {
-            font-size: 11px;
-            font-weight: 500;
-            letter-spacing: 1px;
-            opacity: 0.92;
+            font-size: 15px;
+            letter-spacing: 2px;
+            background: rgba(255, 255, 255, 0.9);
+            opacity: 1;
         }
         .diff-btn:hover { transform: translateY(-2px); filter: brightness(1.05); }
         .diff-btn:active { transform: scale(0.97); }
-        .diff-btn.easy   { background: linear-gradient(135deg, #43c96a, #2ea856); }
-        .diff-btn.normal { background: linear-gradient(135deg, #4a9fe8, #2f7fd1); }
-        .diff-btn.hard   { background: linear-gradient(135deg, #f25c5c, #d63c3c); }
+        .diff-btn.easy   { color: #2ea856; }
+        .diff-btn.normal { color: #2f7fd1; }
+        .diff-btn.hard   { color: #d63c3c; }
         .diff-btn.active {
-            opacity: 1;
-            border-color: #ffce54;
-            transform: scale(1.04);
-            box-shadow: 0 0 0 2px rgba(255, 206, 84, 0.5), 0 8px 22px rgba(0, 0, 0, 0.3);
-            filter: brightness(1.14);
+            border-color: var(--accent);
+            background: rgba(124, 92, 255, 0.08);
+            box-shadow: none;
         }
         .container-buttons {
             display: flex;
-            gap: 10px;
-            margin-bottom: 14px;
+            gap: 8px;
+            margin-bottom: 10px;
         }
         .cont-btn {
             flex: 1;
@@ -462,29 +467,26 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 2px;
-            padding: 12px 8px;
+            gap: 1px;
+            padding: 9px 6px;
             border-radius: 16px;
-            border: 3px solid transparent;
+            border: 1px solid rgba(150, 145, 195, 0.35);
             position: relative;
             font-family: inherit;
             cursor: pointer;
-            color: #fff;
+            color: var(--text-dark);
             font-weight: 800;
-            font-size: 15px;
+            font-size: 13px;
             letter-spacing: 1px;
-            background: linear-gradient(135deg, #8a82b0, #6a639a);
-            box-shadow: 0 6px 16px rgba(120, 110, 170, 0.2);
-            opacity: .72;
-            transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s, border-color 0.12s;
+            background: rgba(255, 255, 255, 0.9);
+            opacity: 1;
+            transition: transform 0.12s ease, border-color 0.12s, background 0.12s;
         }
         .cont-btn:active { transform: scale(0.97); }
         .cont-btn.active {
-            opacity: 1;
-            border-color: #ffce54;
-            transform: scale(1.04);
-            box-shadow: 0 0 0 2px rgba(255, 206, 84, 0.5), 0 8px 22px rgba(120, 110, 170, 0.45);
-            filter: brightness(1.12);
+            border-color: var(--accent);
+            background: rgba(124, 92, 255, 0.08);
+            box-shadow: none;
         }
         .final-score {
             margin: 4px 0 20px;
@@ -540,6 +542,111 @@
             #desktop-tips { display: none; }
         }
 
+        /* ===== 暗角 / 多轴同消横幅 / 飘字 ===== */
+        #vignette {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            pointer-events: none;
+            background: radial-gradient(125% 125% at 50% 42%, transparent 52%, rgba(38, 28, 68, 0.18) 100%);
+            mix-blend-mode: multiply;
+        }
+        .score-float {
+            position: absolute;
+            left: 20px;
+            top: 10px;
+            font-size: 22px;
+            font-weight: 900;
+            color: var(--accent);
+            opacity: 0;
+            pointer-events: none;
+            font-variant-numeric: tabular-nums;
+            text-shadow: 0 2px 8px rgba(124, 92, 255, 0.3);
+        }
+        .score-float.pop { animation: floatUp 0.7s ease forwards; }
+        @keyframes floatUp {
+            0% { opacity: 0; transform: translateY(6px); }
+            20% { opacity: 1; }
+            100% { opacity: 0; transform: translateY(-22px); }
+        }
+        #comboBanner {
+            position: fixed;
+            top: 16%;
+            left: 50%;
+            transform: translate(-50%, -10px);
+            z-index: 200;
+            pointer-events: none;
+            opacity: 0;
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: 2px;
+            color: #fff;
+            padding: 8px 22px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #7c5cff, #4ad6c8);
+            box-shadow: 0 8px 26px rgba(124, 92, 255, 0.42);
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+        #comboBanner.show { animation: bannerPop 0.9s ease forwards; }
+        @keyframes bannerPop {
+            0% { opacity: 0; transform: translate(-50%, 8px) scale(0.8); }
+            18% { opacity: 1; transform: translate(-50%, -6px) scale(1.06); }
+            70% { opacity: 1; transform: translate(-50%, -6px) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -22px) scale(1); }
+        }
+        .screen-shake { animation: shake 0.34s ease; }
+        @keyframes shake {
+            0%, 100% { transform: translate(0, 0); }
+            20% { transform: translate(-3px, 2px); }
+            40% { transform: translate(3px, -2px); }
+            60% { transform: translate(-2px, -2px); }
+            80% { transform: translate(2px, 2px); }
+        }
+
+        /* 开始页：音效开关 */
+        .sound-toggle {
+            margin: 14px auto 0;
+            align-self: center;
+            background: rgba(255, 255, 255, 0.7);
+            border: 1px solid var(--panel-border);
+            border-radius: 999px;
+            padding: 8px 18px;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-mid);
+            cursor: pointer;
+            font-family: inherit;
+            letter-spacing: 1px;
+            transition: transform 0.1s ease, background 0.12s ease;
+        }
+        .sound-toggle:active { transform: scale(0.96); }
+        .sound-toggle.off { color: var(--text-light); opacity: 0.7; }
+
+        /* 结束页：统计 */
+        .final-stats {
+            display: flex;
+            gap: 14px;
+            justify-content: center;
+            margin: 0 0 20px;
+        }
+        .final-stats > div { display: flex; flex-direction: column; gap: 2px; }
+        .fs-label { font-size: 11px; color: var(--text-light); letter-spacing: 1px; font-weight: 700; }
+        .fs-value { font-size: 20px; font-weight: 900; color: var(--text-dark); font-variant-numeric: tabular-nums; }
+
+        /* 移动端按压发光 */
+        .mc-btn[data-axis="x"]:active {
+            box-shadow: 0 0 0 2px rgba(229, 72, 77, 0.45), 0 2px 8px rgba(229, 72, 77, 0.3);
+        }
+        .mc-btn[data-axis="y"]:active {
+            box-shadow: 0 0 0 2px rgba(32, 168, 107, 0.45), 0 2px 8px rgba(32, 168, 107, 0.3);
+        }
+        .mc-btn[data-axis="z"]:active {
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.45), 0 2px 8px rgba(59, 130, 246, 0.3);
+        }
+        .mc-btn.drop:active {
+            box-shadow: 0 0 0 2px rgba(180, 130, 135, 0.5), 0 2px 10px rgba(180, 130, 135, 0.35);
+        }
+
         /* 小屏适配 */
         @media (max-width: 480px) {
             .score-card { padding: 10px 16px 12px; min-width: 132px; border-radius: 18px; }
@@ -564,6 +671,8 @@
     </style>
 </head>
 <body>
+    <div id="vignette"></div>
+    <div id="comboBanner"></div>
     <!-- HUD -->
     <div id="hud">
         <div class="hud-left">
@@ -582,6 +691,7 @@
                     <span class="meta-time" id="timer">00:00</span>
                     <span class="diff-tag" id="diffTag">中等</span>
                 </div>
+                <div class="score-float" id="scoreFloat"></div>
             </div>
             <div class="hud-btns">
                 <button id="btnBack" class="hud-btn" type="button">菜单</button>
@@ -648,31 +758,25 @@
     <!-- 开始 / 结束覆盖层 -->
     <div id="overlay">
         <div class="overlay-card" id="start-card">
-            <h1>🧊 3D 空间俄罗斯方块</h1>
-            <p class="subtitle">选择容器与难度开始游戏</p>
+            <h1>tesseract</h1>
             <div class="container-buttons">
-                <button class="cont-btn active" data-cont="cube" type="button">🧊 立方体</button>
-                <button class="cont-btn" data-cont="pyramid" type="button">🔻 倒金字塔</button>
+                <button class="cont-btn active" data-cont="cube" type="button">立方体</button>
+                <button class="cont-btn" data-cont="pyramid" type="button">倒金字塔</button>
             </div>
             <div class="diff-buttons">
-                <button class="diff-btn easy" data-diff="easy">
-                    简单
-                    <span class="diff-desc">空中悬停 · 确认后落下</span>
-                </button>
-                <button class="diff-btn normal active" data-diff="normal">
-                    中等
-                    <span class="diff-desc">缓慢自动下落</span>
-                </button>
-                <button class="diff-btn hard" data-diff="hard">
-                    困难
-                    <span class="diff-desc">较快自动下落</span>
-                </button>
+                <button class="diff-btn easy" data-diff="easy">简单</button>
+                <button class="diff-btn normal active" data-diff="normal">中等</button>
+                <button class="diff-btn hard" data-diff="hard">困难</button>
             </div>
+            <button class="sound-toggle" id="btnSound" type="button">音效开</button>
         </div>
 
         <div class="overlay-card" id="over-card" style="display:none">
             <h1>游戏结束</h1>
             <p class="final-score">最终得分<span id="finalScore">0</span></p>
+            <div class="final-stats">
+                <div><span class="fs-label">存活时长</span><span class="fs-value" id="finalTime">00:00</span></div>
+            </div>
             <div class="diff-buttons">
                 <button class="diff-btn easy" data-diff="easy">简单 · 再来一局</button>
                 <button class="diff-btn normal" data-diff="normal">中等 · 再来一局</button>
@@ -775,8 +879,22 @@
 
         // ================= 主场景 =================
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xeef1f8);
-        scene.fog = new THREE.FogExp2(0xeef1f8, 0.016);
+        function makeGradientTexture() {
+            const c = document.createElement('canvas');
+            c.width = 16; c.height = 256;
+            const g = c.getContext('2d');
+            const grd = g.createLinearGradient(0, 0, 0, 256);
+            grd.addColorStop(0, '#eef2ff');
+            grd.addColorStop(0.5, '#f1ecff');
+            grd.addColorStop(1, '#e7f6f2');
+            g.fillStyle = grd; g.fillRect(0, 0, 16, 256);
+            const tex = new THREE.CanvasTexture(c);
+            tex.minFilter = THREE.LinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            return tex;
+        }
+        scene.background = makeGradientTexture();
+        scene.fog = new THREE.FogExp2(0xe9ecf6, 0.014);
 
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
 
@@ -795,9 +913,9 @@
         controls.minDistance = 12;
 
         // ================= 灯光 =================
-        scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+        scene.add(new THREE.AmbientLight(0xffffff, 0.72));
 
-        const dirLight = new THREE.DirectionalLight(0xfff8ee, 0.9);
+        const dirLight = new THREE.DirectionalLight(0xfff8ee, 1.05);
         dirLight.position.set(10, 20, 10);
         scene.add(dirLight);
 
@@ -829,6 +947,14 @@
         bottomPlane.position.set(COLS/2, 0.01, DEPTH/2);
         scene.add(bottomPlane);
 
+        // 发光地面网格（仅立方体容器显示）：给 3D 空间一个「光感底座」
+        const floorGrid = new THREE.GridHelper(COLS, COLS, 0x7c5cff, 0xc3bce8);
+        floorGrid.material.transparent = true;
+        floorGrid.material.opacity = 0.24;
+        floorGrid.position.set(COLS/2, 0.02, DEPTH/2);
+        floorGrid.visible = false;
+        scene.add(floorGrid);
+
         // 倒金字塔容器：每一层用「虚线方框」框出其可落范围；另加极淡的实体外轮廓（4 条斜棱 + 最宽层封口环）
         // 提示整体是倒金字塔。几何直接用 pyrRange(y) 生成，与 isInside 判定逐格一致（虚线框画在哪，格子就能落在哪）。
         function buildPyramidWire() {
@@ -842,16 +968,33 @@
                 }
             };
             // 逐层虚线框（画在该层格子垂直中心 y+0.5 处，读作“这一层的可落范围”）
+            // 宽度自顶(y=PYR_ROWS-1, 9 格)向底(y=0, 1 格)逐层 9→1 递减，与判定逐格一致
             for (let y = 0; y < PYR_ROWS; y++) {
                 const [l, h] = pyrRange(y);
                 ringPts(dashed, y + 0.5, l, h);
             }
-            // 实体外轮廓：4 条从最宽层四角到尖点的斜棱 + 最宽层封口环，提示整体是倒金字塔
-            const [lt, ht] = pyrRange(PYR_ROWS - 1);
-            const topCorners = [[lt, lt], [ht + 1, lt], [ht + 1, ht + 1], [lt, ht + 1]];
-            const tipX = PYR_C, tipY = 0, tipZ = PYR_C;
-            for (const c of topCorners) solid.push(c[0], PYR_ROWS - 1, c[1], tipX, tipY, tipZ);
-            ringPts(solid, PYR_ROWS - 1, lt, ht);
+            // 实体外轮廓（灰色“倒三角”）：底环 + 顶环 + 4 条沿层阶梯上升的外棱。
+            // 棱线逐格穿过每层虚线框的外角，灰/蓝严格对齐（不再收成尖点，避免灰色切在蓝色内侧）。
+            const cornersOf = (y) => {
+                const [l, h] = pyrRange(y);
+                const yy = y + 0.5;
+                return {
+                    A: [l, yy, l],
+                    B: [h + 1, yy, l],
+                    C: [h + 1, yy, h + 1],
+                    D: [l, yy, h + 1]
+                };
+            };
+            ringPts(solid, 0.5, ...pyrRange(0));
+            ringPts(solid, (PYR_ROWS - 1) + 0.5, ...pyrRange(PYR_ROWS - 1));
+            for (const k of ['A', 'B', 'C', 'D']) {
+                let prev = null;
+                for (let y = 0; y < PYR_ROWS; y++) {
+                    const c = cornersOf(y)[k];
+                    if (prev) solid.push(prev[0], prev[1], prev[2], c[0], c[1], c[2]);
+                    prev = c;
+                }
+            }
 
             const toGeom = pts => {
                 const g = new THREE.BufferGeometry();
@@ -878,14 +1021,14 @@
         const CUBE_SIZE = 0.94;
         const sharedGeometry = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
         const sharedEdges = new THREE.EdgesGeometry(sharedGeometry);
-        const sharedLineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.55, transparent: true });
+        const sharedLineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.72, transparent: true });
         const materialCache = new Map();
 
         function getMaterial(color) {
             if (!materialCache.has(color)) {
                 materialCache.set(color, new THREE.MeshStandardMaterial({
-                    color: color, emissive: color, emissiveIntensity: 0.14,
-                    roughness: 0.48, metalness: 0.08, transparent: true, opacity: 0.96
+                    color: color, emissive: color, emissiveIntensity: 0.26,
+                    roughness: 0.38, metalness: 0.06, transparent: true, opacity: 0.96
                 }));
             }
             return materialCache.get(color);
@@ -977,20 +1120,20 @@
             return group;
         }
 
-        const xAxisG = createAxis(0xb85c5c, 'x');
+        const xAxisG = createAxis(0xe5484d, 'x');
         xAxisG.rotation.z = -Math.PI / 2;
         gizmoScene.add(xAxisG);
 
-        const yAxisG = createAxis(0x5d8f6c, 'y');
+        const yAxisG = createAxis(0x20a86b, 'y');
         gizmoScene.add(yAxisG);
 
-        const zAxisG = createAxis(0x5c82b8, 'z');
+        const zAxisG = createAxis(0x3b82f6, 'z');
         zAxisG.rotation.x = Math.PI / 2;
         gizmoScene.add(zAxisG);
 
         const centerDot = new THREE.Mesh(
             new THREE.SphereGeometry(0.1, 16, 16),
-            new THREE.MeshBasicMaterial({ color: 0x8a82b0, transparent: true, opacity: 0.7 })
+            new THREE.MeshBasicMaterial({ color: 0x7c5cff, transparent: true, opacity: 0.7 })
         );
         gizmoScene.add(centerDot);
 
@@ -1050,6 +1193,7 @@
         let nextPiece = null;
         let score = 0;
         let pieces = 0; // 已落下的积木（方块）数
+        let soundOn = true;
         let gameOver = true;
         let gameInterval = null;
         let currentInterval = diffConf.startInterval;
@@ -1177,6 +1321,32 @@
         const btnPause = document.getElementById('btnPause');
         const pauseOverlay = document.getElementById('pause-overlay');
         const btnResume = document.getElementById('btnResume');
+        const scoreFloatEl = document.getElementById('scoreFloat');
+        const comboBannerEl = document.getElementById('comboBanner');
+        const finalTimeEl = document.getElementById('finalTime');
+        const btnSound = document.getElementById('btnSound');
+
+        // 分数飘字 / 多轴同消横幅 / 屏幕微震
+        function showScoreFloat(n) {
+            if (!scoreFloatEl) return;
+            scoreFloatEl.textContent = '+' + n;
+            scoreFloatEl.classList.remove('pop');
+            void scoreFloatEl.offsetWidth;
+            scoreFloatEl.classList.add('pop');
+        }
+        function showComboBanner(chain) {
+            if (!comboBannerEl) return;
+            comboBannerEl.textContent = '多轴同消 ×' + chain;
+            comboBannerEl.classList.remove('show');
+            void comboBannerEl.offsetWidth;
+            comboBannerEl.classList.add('show');
+        }
+        function screenShake() {
+            renderer.domElement.classList.remove('screen-shake');
+            void renderer.domElement.offsetWidth;
+            renderer.domElement.classList.add('screen-shake');
+            setTimeout(() => renderer.domElement.classList.remove('screen-shake'), 360);
+        }
 
         // ================= 工具函数 =================
         const keyOf = (x, y, z) => `${x},${y},${z}`;
@@ -1314,7 +1484,7 @@
                 colorIndex: nextPiece.colorIndex,
                 position: {
                     x: containerType === 'pyramid' ? PYR_C - 1 : Math.floor(COLS / 2) - 1,
-                    y: containerType === 'pyramid' ? PYR_ROWS + 3 : ROWS - 2,
+                    y: containerType === 'pyramid' ? PYR_ROWS - 1 : ROWS - 2,
                     z: containerType === 'pyramid' ? PYR_C - 1 : Math.floor(DEPTH / 2) - 1
                 },
                 meshGroup: null
@@ -1572,8 +1742,10 @@
             if (totalScoreAdd > 0) {
                 score += totalScoreAdd;
                 scoreEl.textContent = score;
+                showScoreFloat(totalScoreAdd);
                 spawnClearEffect(clearedCells, chain);
-                playClearSound(chain);
+                if (soundOn) playClearSound(chain);
+                if (chain > 1) { showComboBanner(chain); screenShake(); }
                 updateSpeed();
                 rebuildBlocks(); // 立方体/金字塔消除后 grid 已变更，必须重建显示层，否则被消方块仍留在画面
             }
@@ -1682,6 +1854,7 @@
 
             boundaryBox.visible = !isPyramid;
             bottomPlane.visible = !isPyramid;
+            floorGrid.visible = !isPyramid;
             pyramidContainer.visible = isPyramid;
             adjustCamera(); // 按容器高度重新取景（倒金字塔更矮）
 
@@ -1709,6 +1882,7 @@
             if (gameInterval) { clearInterval(gameInterval); gameInterval = null; }
 
             finalScoreEl.textContent = score;
+            if (finalTimeEl) finalTimeEl.textContent = timerEl.textContent;
             startCard.style.display = 'none';
             overCard.style.display = 'flex';
             overlay.style.display = 'flex';
@@ -1734,6 +1908,7 @@
 
             grid.clear();
             while (blocksGroup.children.length > 0) blocksGroup.remove(blocksGroup.children[0]);
+            floorGrid.visible = false;
             if (currentPiece && currentPiece.meshGroup) {
                 scene.remove(currentPiece.meshGroup);
                 currentPiece.meshGroup = null;
@@ -1760,11 +1935,14 @@
         }
 
         // ================= 事件绑定 =================
+        // 触屏设备：确保显示移动端虚拟按键（部分机型 pointer:coarse 媒体查询不匹配会导致按钮不显示）
+        if (window.matchMedia('(hover: none) and (pointer: coarse)').matches || window.matchMedia('(pointer: coarse)').matches) {
+            document.body.classList.add('is-touch');
+        }
+
         btnBack.addEventListener('click', (e) => { e.preventDefault(); backToMenu(); });
-        btnBack.addEventListener('pointerdown', (e) => e.preventDefault());
 
         btnPause.addEventListener('click', (e) => { e.preventDefault(); togglePause(); });
-        btnPause.addEventListener('pointerdown', (e) => e.preventDefault());
 
         btnResume.addEventListener('click', (e) => { e.preventDefault(); resumeGame(); });
         pauseOverlay.addEventListener('click', (e) => {
@@ -1788,6 +1966,15 @@
                 startGame();
             });
         });
+
+        if (btnSound) {
+            btnSound.addEventListener('click', (e) => {
+                e.preventDefault();
+                soundOn = !soundOn;
+                btnSound.textContent = soundOn ? '音效开' : '音效关';
+                btnSound.classList.toggle('off', !soundOn);
+            });
+        }
 
         // ================= 键盘 =================
         window.addEventListener('keydown', (e) => {
@@ -1869,6 +2056,7 @@
             const start = (e) => {
                 e.preventDefault();
                 if (!running || gameOver || paused) return;
+                if (navigator.vibrate) navigator.vibrate(8);
                 stop();
                 action();
                 timer = setTimeout(() => { interval = setInterval(action, 78); }, 260);
@@ -1884,6 +2072,7 @@
             btn.addEventListener('pointerdown', (e) => {
                 e.preventDefault();
                 if (!running || gameOver || paused) return;
+                if (navigator.vibrate) navigator.vibrate(8);
                 tryRotate(axis);
                 flashAxis(axis, true, true);
             });
@@ -1902,6 +2091,7 @@
         const btnDrop = document.getElementById('btnDrop');
         btnDrop.addEventListener('pointerdown', (e) => {
             e.preventDefault();
+            if (navigator.vibrate) navigator.vibrate(10);
             if (running && !gameOver && !paused) hardDrop();
         });
         btnDrop.addEventListener('contextmenu', e => e.preventDefault());
@@ -1919,9 +2109,9 @@
             }
             camera.fov = fov;
             if (containerType === 'pyramid') {
-                // 倒金字塔 9×9 足迹、9 层：目标点取中心，镜头按包围盒收紧，容器在画面里占比与立方体一致
+                // 倒金字塔 9×9 足迹、9 层：目标点取漏斗几何中心，容器在画面里占比与立方体一致
                 const cxP = PYR_SIZE / 2, czP = PYR_SIZE / 2;
-                const tyP = PYR_SPAWN_TOP * 0.5; // 含出生通道(高出6层)，让初始方块与竖条旋转都落在画面内
+                const tyP = PYR_ROWS * 0.5; // 9 层漏斗的几何中心（y∈[0,8]），让出生与竖条旋转都落在画面内
                 const k = 0.82;
                 camera.position.set(
                     cxP + (pos[0] - COLS / 2) * k,
