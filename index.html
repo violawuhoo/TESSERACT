@@ -230,10 +230,12 @@
             position: fixed;
             left: 0; right: 0;
             bottom: 0;
-            padding: 6px 10px calc(8px + env(safe-area-inset-bottom)) 10px;
+            padding: 6px 12px calc(10px + env(safe-area-inset-bottom)) 12px;
             display: none;
-            flex-direction: column;
-            gap: 6px;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 10px;
             z-index: 300;
             pointer-events: none;
         }
@@ -329,6 +331,32 @@
         }
         .mc-drop-row { margin-top: 6px; }
         .mc-drop { font-size: 17px; font-weight: 800; letter-spacing: 2px; }
+
+        /* 相对视角方向键盘（十字） */
+        .mc-dpad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 6px;
+            width: 150px;
+            height: 150px;
+            pointer-events: none;
+        }
+        .mc-dpad .mc-btn { pointer-events: auto; font-size: 22px; }
+        .mc-dpad .up    { grid-area: 1 / 2 / 2 / 3; }
+        .mc-dpad .left  { grid-area: 2 / 1 / 3 / 2; }
+        .mc-dpad .right { grid-area: 2 / 3 / 3 / 4; }
+        .mc-dpad .down  { grid-area: 3 / 2 / 4 / 3; }
+
+        /* 右下操作区 */
+        .mc-actions { display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+        .mc-rot-row { display: flex; gap: 6px; pointer-events: none; }
+        .mc-rot-row .mc-btn { pointer-events: auto; }
+        .mc-btn.rot { flex-direction: column; gap: 1px; height: 50px; width: 62px; font-size: 16px; }
+        .mc-btn.rot .rot-label { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+        .mc-btn.rot .rot-icon { font-size: 16px; opacity: 0.7; }
+        .mc-btn.view { color: #6a6a92; font-size: 15px; font-weight: 700; flex: 1; height: 50px; }
+        .mc-actions .drop { flex: 1; height: 50px; }
 
         @media (pointer: coarse) {
             #mobile-controls { display: flex; }
@@ -603,6 +631,24 @@
             80% { transform: translate(2px, 2px); }
         }
 
+        /* 反应式动态背景：消行时短暂提亮/色相偏移（低开销、不遮挡方块可读性） */
+        #bgPulse {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0;
+            mix-blend-mode: screen;
+            background: radial-gradient(120% 120% at 50% 45%,
+                rgba(124, 92, 255, 0.55),
+                rgba(74, 214, 200, 0.35) 55%,
+                rgba(124, 92, 255, 0) 100%);
+        }
+        #bgPulse.pulse { animation: bgPulseAnim 0.55s ease-out forwards; }
+        @keyframes bgPulseAnim {
+            0% { opacity: var(--p, 0.15); }
+            100% { opacity: 0; }
+        }
+
         /* 开始页：音效开关 */
         .sound-toggle {
             margin: 14px auto 0;
@@ -672,6 +718,7 @@
 </head>
 <body>
     <div id="vignette"></div>
+    <div id="bgPulse"></div>
     <div id="comboBanner"></div>
     <!-- HUD -->
     <div id="hud">
@@ -707,35 +754,26 @@
         </div>
     </div>
 
-    <!-- 移动端虚拟按键：轴名按钮 -->
+    <!-- 移动端触控：相对视角操作 -->
     <div id="mobile-controls">
-        <div class="mc-row">
-            <button class="mc-btn" id="btnXMinus" data-axis="x" aria-label="X轴负方向">
-                <span class="axis-text">−X</span>
-            </button>
-            <button class="mc-btn" id="btnXPlus" data-axis="x" aria-label="X轴正方向">
-                <span class="axis-text">+X</span>
-            </button>
-            <button class="mc-btn" id="btnZMinus" data-axis="z" aria-label="Z轴负方向">
-                <span class="axis-text">−Z</span>
-            </button>
-            <button class="mc-btn" id="btnZPlus" data-axis="z" aria-label="Z轴正方向">
-                <span class="axis-text">+Z</span>
-            </button>
+        <!-- 左下：相对视角的方向键 -->
+        <div class="mc-dpad" id="mcDpad">
+            <button class="mc-btn dpad up"    data-dir="up"    aria-label="向屏幕上方移动">↑</button>
+            <button class="mc-btn dpad left"  data-dir="left"  aria-label="向屏幕左方移动">←</button>
+            <button class="mc-btn dpad right" data-dir="right" aria-label="向屏幕右方移动">→</button>
+            <button class="mc-btn dpad down"  data-dir="down"  aria-label="向屏幕下方移动">↓</button>
         </div>
-        <div class="mc-row">
-            <button class="mc-btn rot" id="btnRotX" data-axis="x" aria-label="绕X轴旋转">
-                <span class="axis-text">X</span><span class="rot-icon">↻</span>
-            </button>
-            <button class="mc-btn rot" id="btnRotY" data-axis="y" aria-label="绕Y轴旋转">
-                <span class="axis-text">Y</span><span class="rot-icon">↻</span>
-            </button>
-            <button class="mc-btn rot" id="btnRotZ" data-axis="z" aria-label="绕Z轴旋转">
-                <span class="axis-text">Z</span><span class="rot-icon">↻</span>
-            </button>
-        </div>
-        <div class="mc-row mc-drop-row">
-            <button class="mc-btn drop mc-drop" id="btnDrop" aria-label="一键落底">⤓ 落底</button>
+        <!-- 右下：旋转 + 落底 + 回正视角 -->
+        <div class="mc-actions">
+            <div class="mc-rot-row">
+                <button class="mc-btn rot" data-rot="spin"  aria-label="绕竖轴旋转"><span class="rot-icon">↻</span><span class="rot-label">竖转</span></button>
+                <button class="mc-btn rot" data-rot="pitch" aria-label="横翻"><span class="rot-icon">⇅</span><span class="rot-label">横翻</span></button>
+                <button class="mc-btn rot" data-rot="roll"  aria-label="侧翻"><span class="rot-icon">⇄</span><span class="rot-label">侧翻</span></button>
+            </div>
+            <div class="mc-rot-row">
+                <button class="mc-btn drop" id="btnDrop" aria-label="一键落底">⤓ 落底</button>
+                <button class="mc-btn view" id="btnView" aria-label="回正视角">⌖ 回正</button>
+            </div>
         </div>
     </div>
 
@@ -743,7 +781,7 @@
     <div id="desktop-tips">
         <kbd>←</kbd><kbd>→</kbd> X轴 &nbsp;<kbd>↑</kbd><kbd>↓</kbd> Z轴 &nbsp;·&nbsp;
         <kbd>Q</kbd><kbd>E</kbd> 绕Y &nbsp;<kbd>W</kbd><kbd>S</kbd> 绕X &nbsp;<kbd>A</kbd><kbd>D</kbd> 绕Z &nbsp;·&nbsp;
-        <kbd>空格</kbd> 落底 &nbsp;·&nbsp; <kbd>P</kbd> 暂停 &nbsp;·&nbsp; <kbd>C</kbd>/点击坐标 回正
+        <kbd>空格</kbd> 落底 &nbsp;·&nbsp; <kbd>P</kbd> 暂停 &nbsp;·&nbsp; <kbd>C</kbd>/点击坐标 回正 &nbsp;·&nbsp; 手柄：左摇杆移动 / 右摇杆转画面 / <kbd>A</kbd><kbd>X</kbd><kbd>B</kbd> 旋转 / <kbd>RB</kbd> 落底 / <kbd>Start</kbd> 暂停 / <kbd>Back</kbd> 回正
     </div>
 
     <!-- 暂停覆盖层 -->
@@ -907,6 +945,7 @@
         controls.enableDamping = true;
         controls.dampingFactor = 0.06;
         controls.enableZoom = true;
+        controls.enablePan = false;
         controls.zoomSpeed = 0.9;
         controls.rotateSpeed = 0.8;
         controls.maxDistance = 60;
@@ -1240,6 +1279,147 @@
                 osc.stop(t + 0.2);
             }
         }
+
+        // ================= 程序化音效补全（全复用 audioCtx，发声前 ensureAudio 且尊重 soundOn） =================
+        // 噪声缓冲（用于 whoosh / thunk 噪声层），按需创建一次
+        let _noiseBuffer = null;
+        function getNoiseBuffer() {
+            if (_noiseBuffer) return _noiseBuffer;
+            const sr = audioCtx.sampleRate || 44100;
+            const len = Math.floor(sr * 0.4);
+            const buf = audioCtx.createBuffer(1, len, sr);
+            const data = buf.getChannelData(0);
+            for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+            _noiseBuffer = buf;
+            return buf;
+        }
+
+        function playRotateSound() {
+            if (!soundOn) return;
+            ensureAudio();
+            if (!audioCtx) return;
+            const t = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(880, t);
+            gain.gain.setValueAtTime(0.0001, t);
+            gain.gain.exponentialRampToValueAtTime(0.12, t + 0.008);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+            osc.connect(gain).connect(audioCtx.destination);
+            osc.start(t);
+            osc.stop(t + 0.06);
+        }
+
+        function playLandSound() {
+            if (!soundOn) return;
+            ensureAudio();
+            if (!audioCtx) return;
+            const t = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(190, t);
+            osc.frequency.exponentialRampToValueAtTime(90, t + 0.12);
+            gain.gain.setValueAtTime(0.0001, t);
+            gain.gain.exponentialRampToValueAtTime(0.22, t + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+            osc.connect(gain).connect(audioCtx.destination);
+            osc.start(t);
+            osc.stop(t + 0.14);
+            // 叠一层噪声，增加“落定”质感
+            const n = audioCtx.createBufferSource();
+            n.buffer = getNoiseBuffer();
+            const ng = audioCtx.createGain();
+            ng.gain.setValueAtTime(0.06, t);
+            ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+            n.connect(ng).connect(audioCtx.destination);
+            n.start(t);
+            n.stop(t + 0.09);
+        }
+
+        function playHardDropSound() {
+            if (!soundOn) return;
+            ensureAudio();
+            if (!audioCtx) return;
+            const t = audioCtx.currentTime;
+            const n = audioCtx.createBufferSource();
+            n.buffer = getNoiseBuffer();
+            const bp = audioCtx.createBiquadFilter();
+            bp.type = 'bandpass';
+            bp.Q.value = 0.9;
+            bp.frequency.setValueAtTime(1800, t);
+            bp.frequency.exponentialRampToValueAtTime(300, t + 0.18); // 下扫 whoosh
+            const gain = audioCtx.createGain();
+            gain.gain.setValueAtTime(0.0001, t);
+            gain.gain.exponentialRampToValueAtTime(0.2, t + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+            n.connect(bp).connect(gain).connect(audioCtx.destination);
+            n.start(t);
+            n.stop(t + 0.2);
+        }
+
+        function playComboSound(chain) {
+            if (!soundOn) return;
+            ensureAudio();
+            if (!audioCtx) return;
+            playClearSound(chain); // 保留原升调音符
+            if (chain > 1) {
+                // chain>1 叠一层更高八度亮音（shimmer），gain 随 chain 略增并封顶
+                const t = audioCtx.currentTime + 0.02;
+                const base = 523.25 * Math.pow(2, (Math.min(chain - 1, 11)) / 12);
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(base * 2, t);
+                const peak = Math.min(0.16, 0.06 + chain * 0.012);
+                gain.gain.setValueAtTime(0.0001, t);
+                gain.gain.exponentialRampToValueAtTime(peak, t + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+                osc.connect(gain).connect(audioCtx.destination);
+                osc.start(t);
+                osc.stop(t + 0.37);
+            }
+        }
+
+        function playGameOverSound() {
+            if (!soundOn) return;
+            ensureAudio();
+            if (!audioCtx) return;
+            const t = audioCtx.currentTime;
+            const notes = [440, 294]; // 下行两音
+            notes.forEach((f, i) => {
+                const tt = t + i * 0.18;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(f, tt);
+                gain.gain.setValueAtTime(0.0001, tt);
+                gain.gain.exponentialRampToValueAtTime(0.2, tt + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.0001, tt + 0.3);
+                osc.connect(gain).connect(audioCtx.destination);
+                osc.start(tt);
+                osc.stop(tt + 0.32);
+            });
+        }
+
+        function playUISound() {
+            if (!soundOn) return;
+            ensureAudio();
+            if (!audioCtx) return;
+            const t = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(1200, t);
+            gain.gain.setValueAtTime(0.0001, t);
+            gain.gain.exponentialRampToValueAtTime(0.08, t + 0.004);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+            osc.connect(gain).connect(audioCtx.destination);
+            osc.start(t);
+            osc.stop(t + 0.04);
+        }
+
         function spawnClearEffect(cells, chain) {
             if (!cells.length) return;
             const big = (chain > 1 || cells.length >= COLS) && containerType === 'cube';
@@ -1307,6 +1487,50 @@
             }
         }
 
+        // 旋转成功：活动方块 group 一次 scale-pop（1.0 → 1.08 → 1.0，~0.12s），复用 activeEffects 机制
+        function popActivePiece() {
+            const g = currentPiece && currentPiece.meshGroup;
+            if (!g) return;
+            let t = 0; const dur = 0.12;
+            activeEffects.push({
+                update(dt) {
+                    t += dt;
+                    const k = Math.min(1, t / dur);
+                    const s = 1 + 0.08 * Math.sin(k * Math.PI); // 平滑上凸再回落
+                    g.scale.setScalar(s);
+                    if (k >= 1) { g.scale.setScalar(1); return false; }
+                    return true;
+                },
+                dispose() { g.scale.setScalar(1); }
+            });
+        }
+
+        // 落子锁定：刚锁定的方块单元做一次 emissive 白闪淡出（更小、更短，只作用于锁定单元）
+        function spawnLandFlash(positions) {
+            if (!positions || !positions.length) return;
+            for (const p of positions) {
+                const m = new THREE.MeshBasicMaterial({
+                    color: 0xffffff, transparent: true, opacity: 0.8,
+                    blending: THREE.AdditiveBlending, depthWrite: false
+                });
+                const flash = new THREE.Mesh(sharedGeometry, m);
+                flash.position.set(p.x + 0.5, p.y + 0.5, p.z + 0.5);
+                flash.scale.setScalar(1.02);
+                effectsGroup.add(flash);
+                let ft = 0; const fd = 0.18;
+                activeEffects.push({
+                    update(dt) {
+                        ft += dt; const k = ft / fd;
+                        if (k >= 1) { effectsGroup.remove(flash); m.dispose(); return false; }
+                        flash.scale.setScalar(1.02 + k * 0.15);
+                        m.opacity = 0.8 * (1 - k);
+                        return true;
+                    },
+                    dispose() { effectsGroup.remove(flash); m.dispose(); }
+                });
+            }
+        }
+
         const scoreEl = document.getElementById('score');
         const piecesEl = document.getElementById('pieces');
         const timerEl = document.getElementById('timer');
@@ -1325,6 +1549,7 @@
         const comboBannerEl = document.getElementById('comboBanner');
         const finalTimeEl = document.getElementById('finalTime');
         const btnSound = document.getElementById('btnSound');
+        const bgPulseEl = document.getElementById('bgPulse');
 
         // 分数飘字 / 多轴同消横幅 / 屏幕微震
         function showScoreFloat(n) {
@@ -1346,6 +1571,16 @@
             void renderer.domElement.offsetWidth;
             renderer.domElement.classList.add('screen-shake');
             setTimeout(() => renderer.domElement.classList.remove('screen-shake'), 360);
+        }
+
+        // 反应式动态背景：消行时背景短暂提亮（带色相偏移），强度随 chain 增大（封顶）
+        function pulseBackground(chain) {
+            if (!bgPulseEl) return;
+            const peak = Math.min(0.22, 0.09 + (chain || 1) * 0.035);
+            bgPulseEl.style.setProperty('--p', peak.toFixed(3));
+            bgPulseEl.classList.remove('pulse');
+            void bgPulseEl.offsetWidth; // 强制回流以重启动画
+            bgPulseEl.classList.add('pulse');
         }
 
         // ================= 工具函数 =================
@@ -1575,6 +1810,8 @@
                     currentPiece.shape = newShape;
                     currentPiece.position = np;
                     renderCurrentPiece();
+                    playRotateSound();
+                    popActivePiece();
                     return;
                 }
             }
@@ -1590,6 +1827,7 @@
                 currentPiece.position.y -= 1;
             }
             renderCurrentPiece();
+            playHardDropSound();
             lockPiece();
         }
 
@@ -1719,6 +1957,9 @@
                 blocksGroup.add(cube);
             }
 
+            playLandSound();
+            spawnLandFlash(positions);
+
             if (currentPiece.meshGroup) {
                 scene.remove(currentPiece.meshGroup);
                 currentPiece.meshGroup = null;
@@ -1744,7 +1985,8 @@
                 scoreEl.textContent = score;
                 showScoreFloat(totalScoreAdd);
                 spawnClearEffect(clearedCells, chain);
-                if (soundOn) playClearSound(chain);
+                pulseBackground(chain);
+                if (soundOn) playComboSound(chain);
                 if (chain > 1) { showComboBanner(chain); screenShake(); }
                 updateSpeed();
                 rebuildBlocks(); // 立方体/金字塔消除后 grid 已变更，必须重建显示层，否则被消方块仍留在画面
@@ -1798,6 +2040,7 @@
 
         function togglePause() {
             if (!running || gameOver) return;
+            playUISound();
 
             if (!paused) {
                 paused = true;
@@ -1825,6 +2068,7 @@
         }
 
         function startGame() {
+            playUISound();
             ensureAudio();
             grid.clear();
             while (blocksGroup.children.length > 0) blocksGroup.remove(blocksGroup.children[0]);
@@ -1877,6 +2121,7 @@
 
         function triggerGameOver() {
             gameOver = true;
+            playGameOverSound();
             running = false;
             paused = false;
             if (gameInterval) { clearInterval(gameInterval); gameInterval = null; }
@@ -1901,6 +2146,7 @@
         }
 
         function backToMenu() {
+            playUISound();
             running = false;
             gameOver = true;
             paused = false;
@@ -1952,6 +2198,7 @@
         document.querySelectorAll('.cont-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
+                playUISound();
                 containerType = btn.dataset.cont;
                 document.querySelectorAll('.cont-btn').forEach(b => b.classList.toggle('active', b === btn));
             });
@@ -1973,12 +2220,14 @@
                 soundOn = !soundOn;
                 btnSound.textContent = soundOn ? '音效开' : '音效关';
                 btnSound.classList.toggle('off', !soundOn);
+                playUISound();
             });
         }
 
         // ================= 键盘 =================
         window.addEventListener('keydown', (e) => {
             if (overlay.style.display === 'flex') return;
+            if (FAKEPAD) return; // FakePad 启用时真实键盘不抢输入，由虚拟手柄独占（消除 W/A/S/D/Q/E/方向键双触发）
 
             if (e.code === 'KeyC' && !e.repeat) { e.preventDefault(); resetView(); return; }
 
@@ -2040,15 +2289,46 @@
         });
         window.addEventListener('keydown', e => { if (e.code === 'Space') e.preventDefault(); }, false);
 
-        // ================= 移动端虚拟按键 =================
-        function bindHoldMove(btn, axis, sign) {
+        // ================= 移动端触控（相对视角） =================
+        const WORLD_UP = new THREE.Vector3(0, 1, 0);
+        function camBasis() {
+            const fwd = new THREE.Vector3().subVectors(controls.target, camera.position);
+            fwd.y = 0;
+            if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, -1);
+            fwd.normalize();
+            const right = new THREE.Vector3().crossVectors(fwd, WORLD_UP).normalize();
+            return { fwd, right };
+        }
+        // 按屏幕方向把方块移动一格（自动对齐到世界 X/Z 轴）
+        function viewMove(dir) {
+            if (!running || gameOver || paused) return;
+            const { fwd, right } = camBasis();
+            const v = dir === 'up' ? fwd.clone()
+                    : dir === 'down' ? fwd.clone().negate()
+                    : dir === 'left' ? right.clone().negate()
+                    : right.clone();
+            const ax = Math.abs(v.x), az = Math.abs(v.z);
+            if (ax >= az) {
+                const s = v.x > 0 ? 1 : -1;
+                if (movePiece(s, 0, 0)) flashAxis('x', s > 0, false);
+            } else {
+                const s = v.z > 0 ? 1 : -1;
+                if (movePiece(0, 0, s)) flashAxis('z', s > 0, false);
+            }
+        }
+        // 视图相对的方块旋转：spin=绕竖轴；pitch=绕屏幕横轴；roll=绕屏幕纵深轴
+        function viewRotate(kind) {
+            if (!running || gameOver || paused) return;
+            if (kind === 'spin') { tryRotate('y'); flashAxis('y', true, true); return; }
+            const { fwd, right } = camBasis();
+            const v = kind === 'pitch' ? right.clone() : fwd.clone();
+            const axis = Math.abs(v.x) >= Math.abs(v.z) ? 'x' : 'z';
+            tryRotate(axis);
+            flashAxis(axis, true, true);
+        }
+
+        function bindHold(btn, action) {
             let timer = null, interval = null;
-            const action = () => {
-                let ok = false;
-                if (axis === 'x') ok = movePiece(sign, 0, 0);
-                else if (axis === 'z') ok = movePiece(0, 0, sign);
-                if (ok) flashAxis(axis, sign > 0, false);
-            };
             const stop = () => {
                 if (timer) { clearTimeout(timer); timer = null; }
                 if (interval) { clearInterval(interval); interval = null; }
@@ -2067,34 +2347,97 @@
             btn.addEventListener('pointerleave', stop);
             btn.addEventListener('contextmenu', e => e.preventDefault());
         }
-
-        function bindRotateTap(btn, axis) {
+        function bindTap(btn, action) {
             btn.addEventListener('pointerdown', (e) => {
                 e.preventDefault();
                 if (!running || gameOver || paused) return;
                 if (navigator.vibrate) navigator.vibrate(8);
-                tryRotate(axis);
-                flashAxis(axis, true, true);
+                action();
             });
             btn.addEventListener('contextmenu', e => e.preventDefault());
         }
 
-        bindHoldMove(document.getElementById('btnXMinus'), 'x', -1);
-        bindHoldMove(document.getElementById('btnXPlus'),  'x',  1);
-        bindHoldMove(document.getElementById('btnZMinus'), 'z', -1);
-        bindHoldMove(document.getElementById('btnZPlus'),  'z',  1);
-
-        bindRotateTap(document.getElementById('btnRotX'), 'x');
-        bindRotateTap(document.getElementById('btnRotY'), 'y');
-        bindRotateTap(document.getElementById('btnRotZ'), 'z');
+        document.querySelectorAll('#mcDpad .mc-btn').forEach(b =>
+            bindHold(b, () => viewMove(b.dataset.dir)));
+        document.querySelectorAll('.mc-rot-row .rot').forEach(b =>
+            bindTap(b, () => viewRotate(b.dataset.rot)));
 
         const btnDrop = document.getElementById('btnDrop');
-        btnDrop.addEventListener('pointerdown', (e) => {
-            e.preventDefault();
-            if (navigator.vibrate) navigator.vibrate(10);
-            if (running && !gameOver && !paused) hardDrop();
+        bindTap(btnDrop, hardDrop);
+        const btnView = document.getElementById('btnView');
+        bindTap(btnView, resetView);
+
+        // ================= 手柄输入层（Gamepad API） =================
+        const GP_DEADZONE = 0.28;
+        const GP_MOVE_STEP = 130;     // 移动重复间隔(ms)
+        const GP_ORBIT_SPEED = 2.4;   // 转画面速度(弧度/秒，满偏)
+        let gpPrevButtons = [];
+        let gpLastMove = 0;
+
+        window.addEventListener('gamepadconnected', (e) => {
+            console.log('[tesseract] 手柄已连接:', e.gamepad.id);
         });
-        btnDrop.addEventListener('contextmenu', e => e.preventDefault());
+        window.addEventListener('gamepaddisconnected', () => {
+            gpPrevButtons = [];
+        });
+
+        const GP = { A:0, B:1, X:2, Y:3, LB:4, RB:5, LT:6, RT:7, BACK:8, START:9,
+                     D_UP:12, D_DOWN:13, D_LEFT:14, D_RIGHT:15 };
+
+        function pollGamepad() {
+            if (!navigator.getGamepads) return;
+            const pads = navigator.getGamepads();
+            let gp = null;
+            for (const p of pads) { if (p && p.connected) { gp = p; break; } }
+            if (!gp) return;
+
+            const now = performance.now();
+            const ax = gp.axes || [];
+            const bt = gp.buttons || [];
+            const pressed = (i) => !!(bt[i] && bt[i].pressed);
+            const edge = (i) => pressed(i) && !gpPrevButtons[i];
+
+            // 左摇杆：视图相对移动（带重复节奏）
+            const lx = ax[0] || 0, ly = ax[1] || 0;
+            let moveDir = null;
+            if (Math.abs(lx) >= Math.abs(ly)) {
+                if (Math.abs(lx) > GP_DEADZONE) moveDir = lx > 0 ? 'right' : 'left';
+            } else {
+                if (Math.abs(ly) > GP_DEADZONE) moveDir = ly > 0 ? 'down' : 'up';
+            }
+            if (moveDir && now - gpLastMove >= GP_MOVE_STEP) {
+                viewMove(moveDir);
+                gpLastMove = now;
+            }
+
+            // 右摇杆：转画面（绕 target 调方位角/极角）
+            const rx = ax[2] || 0, ry = ax[3] || 0;
+            if (Math.abs(rx) > GP_DEADZONE || Math.abs(ry) > GP_DEADZONE) {
+                const offset = camera.position.clone().sub(controls.target);
+                const sph = new THREE.Spherical().setFromVector3(offset);
+                const k = GP_ORBIT_SPEED / 60;
+                sph.theta -= rx * k;
+                sph.phi   -= ry * k;
+                sph.phi = Math.max(0.15, Math.min(Math.PI - 0.15, sph.phi));
+                offset.setFromSpherical(sph);
+                camera.position.copy(controls.target).add(offset);
+                camera.lookAt(controls.target);
+            }
+
+            // 按键：边沿触发
+            if (edge(GP.A))    viewRotate('spin');
+            if (edge(GP.X))    viewRotate('pitch');
+            if (edge(GP.B))    viewRotate('roll');
+            if (edge(GP.RB) || edge(GP.RT)) hardDrop();
+            if (edge(GP.START)) togglePause();
+            if (edge(GP.BACK))  resetView();
+            if (edge(GP.D_UP))    viewMove('up');
+            if (edge(GP.D_DOWN))  viewMove('down');
+            if (edge(GP.D_LEFT))  viewMove('left');
+            if (edge(GP.D_RIGHT)) viewMove('right');
+
+            gpPrevButtons = bt.map(b => !!(b && b.pressed));
+        }
 
         // ================= 相机自适应 =================
         function adjustCamera() {
@@ -2131,6 +2474,7 @@
 
         // 视角快捷键：一键回正到默认等距视角，避免自由旋转/缩放后迷失方向（C 键 / 移动端「回正」按钮）
         function resetView() {
+            playUISound();
             adjustCamera();
         }
 
@@ -2147,6 +2491,7 @@
             const now = performance.now();
             const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
             lastFrameTime = now;
+            pollGamepad();
             controls.update();
             updateGizmoHighlight();
             renderGizmo();
@@ -2168,6 +2513,64 @@
         currentPiece = null;
         controls.target.set(COLS / 2, ROWS / 3, DEPTH / 2);
         controls.update();
+
+        // ================= FakePad 调试开关（仅在 ?fakepad=1 时启用，绝不影响真实手柄路径） =================
+        const FAKEPAD = location.search.includes('fakepad');
+        if (FAKEPAD) {
+            console.log('[tesseract] FakePad 已启用');
+            const keys = new Set();
+
+            // 由当前按键状态推导左/右摇杆轴值（取 -1/0/1，pollGamepad 自带死区）
+            function fakeAxes() {
+                let ax0 = 0, ax1 = 0, ax2 = 0, ax3 = 0;
+                // 左摇杆：W/A/S/D（W=上=axes[1]负，S=下=axes[1]正；A=左=axes[0]负，D=右=axes[0]正）
+                if (keys.has('KeyA')) ax0 -= 1;
+                if (keys.has('KeyD')) ax0 += 1;
+                if (keys.has('KeyW')) ax1 -= 1;
+                if (keys.has('KeyS')) ax1 += 1;
+                // 右摇杆：I/J/K/L 或方向键（转画面）
+                if (keys.has('KeyJ')) ax2 -= 1;
+                if (keys.has('KeyL')) ax2 += 1;
+                if (keys.has('KeyI')) ax3 -= 1;
+                if (keys.has('KeyK')) ax3 += 1;
+                if (keys.has('ArrowLeft')) ax2 -= 1;
+                if (keys.has('ArrowRight')) ax2 += 1;
+                if (keys.has('ArrowUp')) ax3 -= 1;
+                if (keys.has('ArrowDown')) ax3 += 1;
+                return [ax0, ax1, ax2, ax3, 0, 0];
+            }
+
+            // 数字键与 Q/E/R 映射到标准手柄按键
+            function fakeButtons() {
+                const b = Array.from({ length: 16 }, () => ({ pressed: false, value: 0 }));
+                const map = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, KeyQ: 5, KeyE: 9, KeyR: 8 };
+                for (const code in map) {
+                    if (keys.has(code)) b[map[code]] = { pressed: true, value: 1 };
+                }
+                return b;
+            }
+
+            const syntheticGamepad = {
+                id: 'FakePad',
+                index: 0,
+                connected: true,
+                mapping: 'standard',
+                get timestamp() { return performance.now(); },
+                get axes() { return fakeAxes(); },
+                get buttons() { return fakeButtons(); }
+            };
+
+            window.addEventListener('keydown', (e) => { keys.add(e.code); });
+            window.addEventListener('keyup', (e) => { keys.delete(e.code); });
+            window.addEventListener('blur', () => keys.clear()); // 失焦时清空，避免“卡键”
+
+            // 覆盖 getGamepads（仅启用时）；pollGamepad() 一行不改，真实消费这个虚拟手柄
+            try {
+                navigator.getGamepads = function () { return [syntheticGamepad]; };
+            } catch (err) {
+                console.warn('[tesseract] 无法覆盖 navigator.getGamepads，FakePad 不可用:', err);
+            }
+        }
     </script>
 </body>
 </html>
