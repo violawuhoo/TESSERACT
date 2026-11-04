@@ -7,3 +7,6 @@ Thumbs.db
 
 # Build tooling (if added later)
 node_modules/
+
+# WorkBuddy local project data (internal memory/work logs, not for public repo)
+.workbuddy/

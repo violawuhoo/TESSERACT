@@ -1259,6 +1259,85 @@
                 if (audioCtx.state === 'suspended') audioCtx.resume();
             } catch (e) { audioCtx = null; }
         }
+
+        // ================= 背景音乐（外部 MP3 资源，循环播放，复用 soundOn 静音键） =================
+        // 资源：audio/bg_music.mp3（由用户桌面 "bg music.mp3" 复制进项目，本地化、离线可跑）
+        let bgmAudio = null;
+        const BGM_VOLUME = 0.45;
+
+        function ensureBGM() {
+            if (bgmAudio) return bgmAudio;
+            try {
+                bgmAudio = new Audio('audio/bg_music.mp3');
+                bgmAudio.loop = true;
+                bgmAudio.preload = 'auto';
+                bgmAudio.volume = BGM_VOLUME;
+                // 加载/解码失败（如文件缺失）时静默降级，不影响游戏其余功能
+                bgmAudio.addEventListener('error', () => { bgmAudio = null; });
+            } catch (e) { bgmAudio = null; }
+            return bgmAudio;
+        }
+
+        function startBGM() {
+            if (!soundOn || !running) return; // 仅在对局进行中、且未静音时播放
+            const a = ensureBGM();
+            if (!a) return;
+            if (a.paused) a.play().catch(() => {}); // 自动播放策略：首次需在用户手势链内（开局点击已满足）
+        }
+
+        function stopBGM() {
+            if (bgmAudio && !bgmAudio.paused) bgmAudio.pause();
+        }
+
+        function pauseBGM() { stopBGM(); }
+        function resumeBGM() { startBGM(); }
+
+        // 外部 MP3 短音效（由设计稿对应音频文件；一次性播放，受 soundOn 控制；文件缺失静默降级）
+        // 预加载 + 实例池：避免每次 new Audio() 的加载/解码延迟把 whoosh 推到程序化落定声之后
+        const SFX_MP3_VOLUME = 0.9;
+        const SFX_POOL_SIZE = 3;                  // 每个音效预建实例数，支持快速连击重叠
+        const SFX_FILES = ['twist.mp3', 'whoosh.mp3', 'ui_click.mp3', 'stack_warning.mp3'];
+        const SFX_START_OFFSET = {                 // 起播偏移（秒）：跳过素材前导的低电平渐强段；设 0 关闭
+            'whoosh.mp3': 0.12
+        };
+        const _sfxPool = {};                       // file -> { el: Audio[], next: number }
+        function buildSfxPool(file) {
+            const els = [];
+            for (let i = 0; i < SFX_POOL_SIZE; i++) {
+                try {
+                    const a = new Audio('audio/' + file);
+                    a.preload = 'auto';
+                    a.volume = SFX_MP3_VOLUME;
+                    // 元数据就绪后预先 seek 到起播点，让首次播放无需 seek、真正零延迟
+                    a.addEventListener('loadedmetadata', () => {
+                        const off = SFX_START_OFFSET[file] || 0;
+                        if (off > 0) { try { a.currentTime = off; } catch (e) {} }
+                    }, { once: true });
+                    a.addEventListener('error', () => {}, { once: true }); // 缺失/解码失败静默降级
+                    a.load();
+                    els.push(a);
+                } catch (e) { /* 单实例失败不影响其余音效 */ }
+            }
+            if (els.length) _sfxPool[file] = { el: els, next: 0 };
+        }
+        // 页面加载即预热全部短音效；仅加载不发声，不受浏览器自动播放策略限制
+        SFX_FILES.forEach(buildSfxPool);
+        function playSfxFile(file) {
+            if (!soundOn) return;
+            const pool = _sfxPool[file];
+            if (!pool) return;
+            try {
+                const a = pool.el[pool.next++ % pool.el.length];
+                const target = SFX_START_OFFSET[file] || 0;
+                a.pause();
+                // 仅在元数据已就绪且位置偏离时 seek；未就绪则从头播，绝不让 seek 阻塞起播
+                if (a.readyState >= 1 && Math.abs(a.currentTime - target) > 0.02) {
+                    try { a.currentTime = target; } catch (e) {}
+                }
+                a.play().catch(() => {});
+            } catch (e) {}
+        }
+
         function playClearSound(chain) {
             ensureAudio();
             if (!audioCtx) return;
@@ -1296,19 +1375,7 @@
 
         function playRotateSound() {
             if (!soundOn) return;
-            ensureAudio();
-            if (!audioCtx) return;
-            const t = audioCtx.currentTime;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(880, t);
-            gain.gain.setValueAtTime(0.0001, t);
-            gain.gain.exponentialRampToValueAtTime(0.12, t + 0.008);
-            gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
-            osc.connect(gain).connect(audioCtx.destination);
-            osc.start(t);
-            osc.stop(t + 0.06);
+            playSfxFile('twist.mp3'); // 设计稿：方块旋转 twist
         }
 
         function playLandSound() {
@@ -1340,23 +1407,7 @@
 
         function playHardDropSound() {
             if (!soundOn) return;
-            ensureAudio();
-            if (!audioCtx) return;
-            const t = audioCtx.currentTime;
-            const n = audioCtx.createBufferSource();
-            n.buffer = getNoiseBuffer();
-            const bp = audioCtx.createBiquadFilter();
-            bp.type = 'bandpass';
-            bp.Q.value = 0.9;
-            bp.frequency.setValueAtTime(1800, t);
-            bp.frequency.exponentialRampToValueAtTime(300, t + 0.18); // 下扫 whoosh
-            const gain = audioCtx.createGain();
-            gain.gain.setValueAtTime(0.0001, t);
-            gain.gain.exponentialRampToValueAtTime(0.2, t + 0.01);
-            gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
-            n.connect(bp).connect(gain).connect(audioCtx.destination);
-            n.start(t);
-            n.stop(t + 0.2);
+            playSfxFile('whoosh.mp3'); // 设计稿：硬降 whoosh
         }
 
         function playComboSound(chain) {
@@ -1405,19 +1456,12 @@
 
         function playUISound() {
             if (!soundOn) return;
-            ensureAudio();
-            if (!audioCtx) return;
-            const t = audioCtx.currentTime;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(1200, t);
-            gain.gain.setValueAtTime(0.0001, t);
-            gain.gain.exponentialRampToValueAtTime(0.08, t + 0.004);
-            gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
-            osc.connect(gain).connect(audioCtx.destination);
-            osc.start(t);
-            osc.stop(t + 0.04);
+            playSfxFile('ui_click.mp3'); // 设计稿：UI 点击
+        }
+
+        function playStackWarning() {
+            if (!soundOn) return;
+            playSfxFile('stack_warning.mp3'); // 设计稿：堆叠到顶警告
         }
 
         function spawnClearEffect(cells, chain) {
@@ -1943,6 +1987,26 @@
             }
         }
 
+        let stackDanger = false;
+        function stackMaxY() {
+            let maxY = -1;
+            for (const k of grid.keys()) {
+                const y = parseInt(k.split(',')[1], 10);
+                if (y > maxY) maxY = y;
+            }
+            return maxY;
+        }
+        function checkStackDanger() {
+            const topRow = containerType === 'pyramid' ? PYR_ROWS : ROWS;
+            const dangerLine = topRow - 3; // 栈高进入顶部 3 行即视为危险
+            const my = stackMaxY();
+            if (my >= dangerLine) {
+                if (!stackDanger) { stackDanger = true; playStackWarning(); } // 进入危险区只响一次，避免每次锁定都响
+            } else {
+                stackDanger = false;
+            }
+        }
+
         function lockPiece() {
             clearGhost();
             if (!currentPiece) return;
@@ -1993,6 +2057,7 @@
             }
             if (containerType === 'pyramid') rebuildBlocks(); // 金字塔锁定后 pyrCompact 会压实移动方块，需重建显示
 
+            checkStackDanger(); // 锁定后检测堆叠高度，进入顶部危险区时播放一次堆叠到顶警告
             spawnPiece();
         }
 
@@ -2047,6 +2112,7 @@
                 pauseStartTime = performance.now();
                 if (gameInterval) { clearInterval(gameInterval); gameInterval = null; }
                 controls.enabled = false;
+                pauseBGM(); // 暂停时停止背景音乐
                 pauseOverlay.style.display = 'flex';
                 btnPause.textContent = '继续';
                 btnPause.classList.add('paused');
@@ -2058,6 +2124,7 @@
                 }
                 controls.enabled = true;
                 pauseOverlay.style.display = 'none';
+                resumeBGM(); // 继续时恢复背景音乐
                 btnPause.textContent = '暂停';
                 btnPause.classList.remove('paused');
             }
@@ -2071,6 +2138,7 @@
             playUISound();
             ensureAudio();
             grid.clear();
+            stackDanger = false; // 新对局重置堆叠危险状态
             while (blocksGroup.children.length > 0) blocksGroup.remove(blocksGroup.children[0]);
             if (currentPiece && currentPiece.meshGroup) {
                 scene.remove(currentPiece.meshGroup);
@@ -2086,6 +2154,7 @@
             gameOver = false;
             running = true;
             paused = false;
+            startBGM(); // 开局起播背景音乐（内部已校验 soundOn / running）
 
             gameStartTime = performance.now();
             totalPauseTime = 0;
@@ -2121,6 +2190,7 @@
 
         function triggerGameOver() {
             gameOver = true;
+            stopBGM(); // 结束时停止背景音乐，让 game-over 收尾音清晰
             playGameOverSound();
             running = false;
             paused = false;
@@ -2149,6 +2219,7 @@
             playUISound();
             running = false;
             gameOver = true;
+            stopBGM(); // 回菜单时停止背景音乐
             paused = false;
             if (gameInterval) { clearInterval(gameInterval); gameInterval = null; }
 
@@ -2220,6 +2291,7 @@
                 soundOn = !soundOn;
                 btnSound.textContent = soundOn ? '音效开' : '音效关';
                 btnSound.classList.toggle('off', !soundOn);
+                if (soundOn) startBGM(); else stopBGM(); // 静音键同步背景音乐
                 playUISound();
             });
         }
