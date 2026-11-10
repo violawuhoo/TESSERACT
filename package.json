@@ -1,0 +1,9 @@
+{
+  "name": "tesseract",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node _test.mjs",
+    "baseline": "node tools/capture-baseline.mjs"
+  }
+}

@@ -41,7 +41,7 @@
             user-select: none;
             -webkit-user-select: none;
         }
-        canvas { display: block; }
+        canvas { display: block; touch-action: none; }
 
         /* ===== HUD ===== */
         #hud {
@@ -272,52 +272,18 @@
         .mc-btn:active {
             transform: scale(0.94);
         }
-
-        .axis-text {
-            font-size: 15px;
-            font-weight: 800;
-            letter-spacing: 0.2px;
-            font-family: 'SF Mono', 'Consolas', 'Menlo', monospace;
+        /* 按压反馈：挂到实际存在的按钮上（旧 data-axis / axis-text 规则无对应 DOM，已清理） */
+        .mc-dpad .mc-btn:active,
+        .mc-btn.rot:active,
+        .mc-btn.view:active {
+            background: rgba(238, 241, 255, 0.94);
+            box-shadow: 0 0 0 2px rgba(120, 130, 200, 0.45), 0 2px 8px rgba(120, 130, 200, 0.3);
         }
         .rot-icon {
             font-size: 11px;
             opacity: 0.55;
             font-weight: 700;
         }
-
-        /* X 轴 */
-        .mc-btn[data-axis="x"] {
-            color: var(--axis-x);
-            border-color: rgba(184, 92, 92, 0.26);
-            background: rgba(255, 246, 246, 0.66);
-        }
-        .mc-btn[data-axis="x"]:active {
-            background: rgba(255, 228, 228, 0.94);
-            box-shadow: 0 1px 4px rgba(184, 92, 92, 0.18);
-        }
-        /* Y 轴 */
-        .mc-btn[data-axis="y"] {
-            color: var(--axis-y);
-            border-color: rgba(93, 143, 108, 0.26);
-            background: rgba(245, 252, 246, 0.66);
-        }
-        .mc-btn[data-axis="y"]:active {
-            background: rgba(224, 245, 230, 0.94);
-            box-shadow: 0 1px 4px rgba(93, 143, 108, 0.18);
-        }
-        /* Z 轴 */
-        .mc-btn[data-axis="z"] {
-            color: var(--axis-z);
-            border-color: rgba(92, 130, 184, 0.26);
-            background: rgba(244, 248, 255, 0.66);
-        }
-        .mc-btn[data-axis="z"]:active {
-            background: rgba(224, 235, 255, 0.94);
-            box-shadow: 0 1px 4px rgba(92, 130, 184, 0.18);
-        }
-
-        .mc-btn.rot { font-size: 14px; gap: 2px; }
-        .mc-btn.rot .axis-text { font-size: 14px; }
 
         .mc-btn.drop {
             color: #8a6268;
@@ -327,7 +293,7 @@
         }
         .mc-btn.drop:active {
             background: rgba(255, 228, 230, 0.94);
-            box-shadow: 0 1px 4px rgba(180, 130, 135, 0.18);
+            box-shadow: 0 0 0 2px rgba(180, 130, 135, 0.5), 0 2px 10px rgba(180, 130, 135, 0.35);
         }
         .mc-drop-row { margin-top: 6px; }
         .mc-drop { font-size: 17px; font-weight: 800; letter-spacing: 2px; }
@@ -679,20 +645,6 @@
         .fs-label { font-size: 11px; color: var(--text-light); letter-spacing: 1px; font-weight: 700; }
         .fs-value { font-size: 20px; font-weight: 900; color: var(--text-dark); font-variant-numeric: tabular-nums; }
 
-        /* 移动端按压发光 */
-        .mc-btn[data-axis="x"]:active {
-            box-shadow: 0 0 0 2px rgba(229, 72, 77, 0.45), 0 2px 8px rgba(229, 72, 77, 0.3);
-        }
-        .mc-btn[data-axis="y"]:active {
-            box-shadow: 0 0 0 2px rgba(32, 168, 107, 0.45), 0 2px 8px rgba(32, 168, 107, 0.3);
-        }
-        .mc-btn[data-axis="z"]:active {
-            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.45), 0 2px 8px rgba(59, 130, 246, 0.3);
-        }
-        .mc-btn.drop:active {
-            box-shadow: 0 0 0 2px rgba(180, 130, 135, 0.5), 0 2px 10px rgba(180, 130, 135, 0.35);
-        }
-
         /* 小屏适配 */
         @media (max-width: 480px) {
             .score-card { padding: 10px 16px 12px; min-width: 132px; border-radius: 18px; }
@@ -707,8 +659,6 @@
             .next-card { padding: 6px 9px 8px; border-radius: 14px; }
             #gizmo-wrap { width: 64px; height: 64px; }
             .mc-btn { height: 42px; border-radius: 10px; }
-            .axis-text { font-size: 14px; }
-            .mc-btn.rot .axis-text { font-size: 13px; }
             .rot-icon { font-size: 10px; }
             .mc-btn.drop { font-size: 18px; }
             .overlay-card { padding: 22px 16px; }
@@ -2300,8 +2250,9 @@
         window.addEventListener('keydown', (e) => {
             if (overlay.style.display === 'flex') return;
             if (FAKEPAD) return; // FakePad 启用时真实键盘不抢输入，由虚拟手柄独占（消除 W/A/S/D/Q/E/方向键双触发）
+            if (e.repeat) return; // 长按不连发：移动 / 旋转 / 落底 / 暂停 / 返回菜单均只响应首次按下
 
-            if (e.code === 'KeyC' && !e.repeat) { e.preventDefault(); resetView(); return; }
+            if (e.code === 'KeyC') { e.preventDefault(); resetView(); return; }
 
             if (paused) {
                 if (e.code === 'KeyP') { e.preventDefault(); togglePause(); }
@@ -2359,7 +2310,6 @@
                     break;
             }
         });
-        window.addEventListener('keydown', e => { if (e.code === 'Space') e.preventDefault(); }, false);
 
         // ================= 移动端触控（相对视角） =================
         const WORLD_UP = new THREE.Vector3(0, 1, 0);
